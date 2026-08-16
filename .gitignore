@@ -1,0 +1,7 @@
+build/
+*.o
+*.obj
+.cache/
+.vscode/
+.idea/
+roms/
