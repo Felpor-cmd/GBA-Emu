@@ -5,3 +5,6 @@ build/
 .vscode/
 .idea/
 roms/
+.agents
+AGENTS.md
+skills-lock.json
