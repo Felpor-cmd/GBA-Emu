@@ -10,6 +10,7 @@ constexpr u32 kThumbFlag = 0x20; // CPSR bit 5 — the "T" bit
 
 class Cpu {
     public:
+    static bool CheckCondition(u32 cond, u32 cpsr);
     explicit Cpu(Bus& bus);
 
     void Reset();  // Set up post-BIOS register/mode state.

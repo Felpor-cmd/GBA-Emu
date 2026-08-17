@@ -33,7 +33,7 @@ moving to the next box.
 ### 2a. Fetch/decode skeleton
 - [x] `Step()` fetches a raw instruction word from the bus at the PC and advances the PC (does nothing else yet)
 - [x] Branch fetch width on the CPSR `T` bit (32-bit ARM vs 16-bit Thumb)
-- [ ] Condition code evaluation (top 4 bits of an ARM instruction vs CPSR flags)
+- [x] Condition code evaluation (top 4 bits of an ARM instruction vs CPSR flags)
 
 ### 2b. ARM instruction set
 - [ ] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ...)

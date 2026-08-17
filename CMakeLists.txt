@@ -29,6 +29,8 @@ enable_testing()
 
 add_executable(gba_tests
     tests/bus_test.cpp
+    tests/cpu_test.cpp
+    src/cpu/cpu.cpp
     src/memory/bus.cpp
 )
 target_include_directories(gba_tests PRIVATE src)
