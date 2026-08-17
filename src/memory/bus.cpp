@@ -9,14 +9,16 @@ u8 Bus::Read8(u32 address) const {
 
     switch (address >> 24){
         case 0x00: return bios_[address & (kBiosSize - 1)];
-        
+
+        case 0x04: return io_[address & (kIoSize -1)];
+
         case 0x02: return ewram_[address & (kEwramSize - 1)];
         case 0x03: return iwram_[address & (kIwramSize - 1)];
         case 0x05: return palette_[address & (kPaletteSize - 1)];
         case 0x06: return vram_[address & (kVramSize - 1)];
         case 0x07: return oam_[address & (kOamSize - 1)];
         
-        default: return 0; // TODO: handle other regions (BIOS, ROM, SRAM, I/O registers)
+        default: return 0; // TODO: handle other regions ( ROM, SRAM )
     }
 }
 
@@ -36,6 +38,8 @@ void Bus::Write8(u32 address, u8 value) {
 
     switch (address >> 24){
         case 0x00: break; // BIOS is read-only, ignore writes
+
+        case 0x04: io_[address & (kIoSize - 1)] = value; break;
 
         case 0x02: ewram_[address & (kEwramSize - 1)] = value; break;
         case 0x03: iwram_[address & (kIwramSize - 1)] = value; break;

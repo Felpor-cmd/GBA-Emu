@@ -11,6 +11,8 @@ constexpr u32 kPaletteSize = 0x400;     // 1 KB   BG/OBJ palette RAM
 constexpr u32 kVramSize    = 0x18000;   // 96 KB  video RAM
 constexpr u32 kOamSize     = 0x400;     // 1 KB   object attribute memory
 
+constexpr u32 kIoSize      = 0x400;     // 1 KB   I/O Registers
+
 // Owns every RAM region plus the loaded ROM, and will become the single
 // place every other component (CPU, PPU, timers, DMA) goes through to touch
 // memory. Right now the read/write methods are stubs -- wiring them up to
@@ -35,4 +37,6 @@ private:
     std::array<u8, kVramSize>    vram_{};
     std::array<u8, kOamSize>     oam_{};
     std::vector<u8>              rom_;
+
+    std::array<u8, kIoSize> io_{};
 };
