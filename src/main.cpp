@@ -40,6 +40,7 @@ int main(int argc, char** argv) {
 
     Bus bus(std::move(rom));
     Cpu cpu(bus);
+    cpu.Step();
     cpu.Reset();
 
     std::printf("CPU reset complete. Next: implement Cpu::Step().\n");

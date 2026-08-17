@@ -1,4 +1,5 @@
 #include "cpu.hpp"
+#include <cstdio>
 
 Cpu::Cpu(Bus& bus) : bus_(bus) {
     Reset();
@@ -12,6 +13,9 @@ void Cpu::Reset() {
 }
 
 void Cpu::Step() {
-    // TODO: fetch the instruction at regs_[15] via bus_, decode as ARM or
-    // Thumb depending on the CPSR T bit, execute, advance the PC.
+    u32 instruction = bus_.Read32(regs_[15]);  
+    regs_[15] += 4;                            
+    // decoding/executing `instruction` comes in a later milestone — nothing else here yet
+
+    std::printf("PC=0x%08X  instruction=0x%08X\n", regs_[15], instruction);
 }
