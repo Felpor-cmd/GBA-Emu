@@ -40,6 +40,4 @@ private:
     std::array<u8, kIoSize>      io_{};
     std::array<u8, kSramSize>    sram_{};
     std::vector<u8>              rom_;  
-
-    std::array<u8, kIoSize> io_{};
 };
