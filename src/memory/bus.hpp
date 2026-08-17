@@ -10,6 +10,7 @@ constexpr u32 kIwramSize   = 0x8000;    // 32 KB  in-chip WRAM
 constexpr u32 kPaletteSize = 0x400;     // 1 KB   BG/OBJ palette RAM
 constexpr u32 kVramSize    = 0x18000;   // 96 KB  video RAM
 constexpr u32 kOamSize     = 0x400;     // 1 KB   object attribute memory
+constexpr u32 kSramSize    = 0x8000;   // 32 KB  static RAM
 
 constexpr u32 kIoSize      = 0x400;     // 1 KB   I/O Registers - PLACEHOLDER
 
@@ -37,6 +38,7 @@ private:
     std::array<u8, kVramSize>    vram_{};
     std::array<u8, kOamSize>     oam_{};
     std::array<u8, kIoSize>      io_{};
+    std::array<u8, kSramSize>    sram_{};
     std::vector<u8>              rom_;  
 
     std::array<u8, kIoSize> io_{};

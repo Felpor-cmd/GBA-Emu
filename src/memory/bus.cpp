@@ -26,6 +26,8 @@ u8 Bus::Read8(u32 address) const {
                 return rom_[offset]; // ROM is read-only, return value from ROM
         }
 
+        case 0x0E: return sram_[address & (kSramSize - 1)];
+
         default: return 0; // TODO: handle other regions ( ROM, SRAM )
     }
 }
@@ -54,10 +56,13 @@ void Bus::Write8(u32 address, u8 value) {
         case 0x05: palette_[address & (kPaletteSize - 1)] = value; break;
         case 0x06: vram_[address & (kVramSize - 1)] = value; break;
         case 0x07: oam_[address & (kOamSize - 1)] = value; break;
-
-        case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D: 
+        
+        case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D: {
             // ROM is read-only, ignore writes
             break;
+        }
+        
+        case 0x0E: sram_[address & (kSramSize - 1)] = value; break;
 
         default: break; // TODO: handle other regions (BIOS, ROM, SRAM, I/O registers)
     }
