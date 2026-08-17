@@ -5,8 +5,11 @@
 
 // The ARM7TDMI core. Holds the register file and will grow to hold banked
 // registers (for FIQ/IRQ/SVC/etc. modes) once mode switching is implemented.
+
+constexpr u32 kThumbFlag = 0x20; // CPSR bit 5 — the "T" bit
+
 class Cpu {
-public:
+    public:
     explicit Cpu(Bus& bus);
 
     void Reset();  // Set up post-BIOS register/mode state.
@@ -17,4 +20,5 @@ private:
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).
 
     Bus& bus_;
+
 };

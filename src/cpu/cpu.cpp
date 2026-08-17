@@ -17,5 +17,16 @@ void Cpu::Step() {
     regs_[15] += 4;                            
     // decoding/executing `instruction` comes in a later milestone — nothing else here yet
 
-    std::printf("PC=0x%08X  instruction=0x%08X\n", regs_[15], instruction);
+    bool thumb_mode = (cpsr_ & kThumbFlag) != 0;
+
+    if (thumb_mode){
+        u16 thumb_instruction = bus_.Read16(regs_[15]);
+        regs_[15] += 2; 
+        std::printf("Enter THUMB\n");
+
+    } else {
+        u32 instruction = bus_.Read32(regs_[15]);
+        regs_[15] += 4;
+        std::printf("Enter ARM\n");
+    }
 }
