@@ -36,7 +36,7 @@ moving to the next box.
 - [x] Condition code evaluation (top 4 bits of an ARM instruction vs CPSR flags)
 
 ### 2b. ARM instruction set
-- [ ] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ...)
+- [x] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ...)
 - [ ] Data processing — immediate operand
 - [ ] Data processing — shifted register operand (LSL, LSR, ASR, ROR)
 - [ ] Branch (B) and Branch-with-Link (BL)
@@ -186,3 +186,11 @@ correct."
 - GBATEK (hardware reference): https://problemkaputt.de/gbatek.htm
 - Test ROMs: https://github.com/jsmolka/gba-tests
 - Reference implementation: https://github.com/nba-emu/NanoBoyAdvance
+
+
+---
+
+## Notes
+
+2b.1 One honest thing to flag and set aside for now: on real hardware, if Rn or Rm is r15 (the PC), the value read isn't quite the PC you'd expect — a pipelining quirk makes it read as current instruction address + 8. We're not modeling a pipeline, so this'll be slightly wrong if a game ever uses the PC as a math operand. It's a real gap, but a narrow one — safe to note and revisit later rather than solve today.
+
