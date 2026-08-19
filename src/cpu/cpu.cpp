@@ -9,6 +9,14 @@ namespace {
 
     struct AddResult { u32 value; bool carry; bool overflow; };
 
+    u32 RotateRight(u32 value, unsigned amount) {
+        amount &= 31;
+        if (amount == 0) {
+            return value;
+        }
+        return (value >> amount) | (value << (32 - amount));
+    }
+
     AddResult AddWithCarry(u32 a, u32 b, bool carry_in) {
         u64 result64 = static_cast<u64>(a) + static_cast<u64>(b) + (carry_in ? 1u : 0u);
         u32 result = static_cast<u32>(result64);
@@ -24,15 +32,35 @@ void Cpu::ExecuteDataProcessing(u32 instruction) {
     bool set_flags = (instruction >> 20) & 1;
     u32 rn = (instruction >> 16) & 0xF;
     u32 rd = (instruction >> 12) & 0xF;
-    u32 rm = instruction & 0xF;  // this milestone: Operand2 == Rm, no shift yet
+    bool immediate_operand = (instruction >> 25) & 1;
 
     u32 op1 = regs_[rn];
-    u32 op2 = regs_[rm];
     bool c_in = (cpsr_ >> 29) & 1;
+
+    u32 op2 = 0;
+    bool shifter_carry_out = c_in;
+
+    if (immediate_operand) {
+        u32 imm8 = instruction & 0xFF;
+        unsigned rotate_amount = ((instruction >> 8) & 0xF) * 2;
+
+        op2 = RotateRight(imm8, rotate_amount);
+
+        // An immediate with no rotation does not produce a new carry value;
+        // the old CPSR C flag is carried through instead.
+        if (rotate_amount != 0) {
+            shifter_carry_out = (op2 >> 31) & 1;
+        }
+    } else {
+        u32 rm = instruction & 0xF;
+        op2 = regs_[rm];
+        // Register shifts are not implemented yet. An unshifted register
+        // operand leaves the shifter carry equal to the old CPSR C flag.
+    }
 
     u32 result = 0;
     bool write_result = true;
-    bool carry_out = c_in;                  // unchanged unless arithmetic says otherwise
+    bool carry_out = shifter_carry_out;     // overridden by arithmetic operations
     bool overflow_out = (cpsr_ >> 28) & 1;   // unchanged unless arithmetic says otherwise
 
     switch (opcode) {

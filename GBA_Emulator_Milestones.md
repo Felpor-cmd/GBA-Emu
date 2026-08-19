@@ -37,8 +37,8 @@ moving to the next box.
 
 ### 2b. ARM instruction set
 - [x] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ...)
-- [ ] Data processing — immediate operand
-- [ ] Data processing — shifted register operand (LSL, LSR, ASR, ROR)
+- [x] Data processing — immediate operand
+- [x] Data processing — shifted register operand (LSL, LSR, ASR, ROR)
 - [ ] Branch (B) and Branch-with-Link (BL)
 - [ ] Branch and Exchange (BX) — this is what actually switches into Thumb state
 - [ ] Single data transfer (LDR/STR, word and byte)
@@ -178,15 +178,6 @@ correct."
 - [ ] A debugger: breakpoints, memory viewer, disassembler
 - [ ] Real BIOS emulation (replacing the current boot-skip shortcut)
 - [ ] Link cable / multiplayer emulation (even mature emulators often skip this)
-
----
-
-## References
-
-- GBATEK (hardware reference): https://problemkaputt.de/gbatek.htm
-- Test ROMs: https://github.com/jsmolka/gba-tests
-- Reference implementation: https://github.com/nba-emu/NanoBoyAdvance
-
 
 ---
 

@@ -9,6 +9,13 @@ namespace {
         return (cond << 28) | (0b00 << 26) | (opcode << 21) | ((s ? 1u : 0u) << 20) | (rn << 16) | (rd << 12) | rm;
     }
 
+    u32 EncodeShiftedRegister(u32 cond, u32 opcode, bool s, u32 rn, u32 rd,
+                              u32 shift_amount, u32 shift_type, u32 rm) {
+        return (cond << 28) | (opcode << 21) | ((s ? 1u : 0u) << 20) |
+               (rn << 16) | (rd << 12) | (shift_amount << 7) |
+               (shift_type << 5) | rm;
+    }
+
     std::vector<u8> AsRom(u32 instr) {
         return {static_cast<u8>(instr), static_cast<u8>(instr >> 8),
                 static_cast<u8>(instr >> 16), static_cast<u8>(instr >> 24)};
@@ -76,4 +83,44 @@ TEST_CASE("Cpu::Step executes sequential instructions") {
     std::printf("r0=%u (expect 10), r3=%u (expect 20)\n", cpu.GetRegister(0), cpu.GetRegister(3));
     REQUIRE(cpu.GetRegister(0) == 10);
     REQUIRE(cpu.GetRegister(3) == 20);
+}
+
+TEST_CASE("Cpu::Step applies LSL to a register operand") {
+    Bus bus(AsRom(EncodeShiftedRegister(0xE, 0xD, false, 0, 0, 2, 0, 1)));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 3);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(0) == 12);
+}
+
+TEST_CASE("Cpu::Step applies LSR to a register operand") {
+    Bus bus(AsRom(EncodeShiftedRegister(0xE, 0xD, false, 0, 0, 2, 1, 1)));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 16);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(0) == 4);
+}
+
+TEST_CASE("Cpu::Step applies ASR to a register operand") {
+    Bus bus(AsRom(EncodeShiftedRegister(0xE, 0xD, false, 0, 0, 2, 2, 1)));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 0x80000008);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(0) == 0xE0000002);
+}
+
+TEST_CASE("Cpu::Step applies ROR to a register operand") {
+    Bus bus(AsRom(EncodeShiftedRegister(0xE, 0xD, false, 0, 0, 4, 3, 1)));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 0x80000001);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(0) == 0x18000000);
 }
