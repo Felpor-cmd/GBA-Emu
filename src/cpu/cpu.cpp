@@ -95,6 +95,33 @@ void Cpu::ExecuteDataProcessing(u32 instruction) {
     }
 }
 
+void Cpu::ExecuteBranch(u32 instruction, u32 instruction_address) {
+    // Bit 24 distinguishes B from BL.
+    bool link = (instruction >> 24) & 1;
+
+    // Extract and sign-extend the 24-bit branch offset.
+    s32 offset = static_cast<s32>(instruction & 0x00FFFFFFu);
+
+    if (offset & 0x00800000) {
+        offset |= static_cast<s32>(0xFF000000u);
+    }
+
+    // ARM branch offsets are word-aligned.
+    offset *= 4;
+
+    // ARM's architectural PC is instruction address + 8.
+    u32 target = instruction_address + 8u
+               + static_cast<u32>(offset);
+
+    if (link) {
+        // BL stores the return address in LR/r14.
+        regs_[14] = instruction_address + 4;
+    }
+
+    // B and BL both update the program counter.
+    regs_[15] = target;
+}
+
 bool Cpu::CheckCondition(u32 cond, u32 cpsr) {
     bool n = (cpsr >> 31) & 1;
     bool z = (cpsr >> 30) & 1;
@@ -124,30 +151,48 @@ bool Cpu::CheckCondition(u32 cond, u32 cpsr) {
 void Cpu::Reset() {
     regs_.fill(0);
     regs_[13] = 0x03007F00;  // SP: matches the post-BIOS stack pointer (GBATEK: BIOS).
-    regs_[15] = 0x08000000;  // PC: cartridge ROM entry point.
+    regs_[15] = 0x08000000;  // instruction_address: cartridge ROM entry point.
     cpsr_ = 0x1F;             // System mode, ARM state, IRQ/FIQ unmasked.
 }
 
 void Cpu::Step() {
     bool thumb_mode = (cpsr_ & kThumbFlag) != 0;
-    u32 pc = regs_[15];
+    u32 instruction_address = regs_[15];
 
     if (thumb_mode) {
-        u16 instruction = bus_.Read16(pc);
-        regs_[15] = pc + 2;
-        std::printf("Enter THUMB\n");
-        (void)instruction;  // decode/execute is a future milestone
-    } else {
-        u32 instruction = bus_.Read32(pc);
-        regs_[15] = pc + 4;
-        std::printf("Enter ARM\n");
+        u16 instruction = bus_.Read16(instruction_address);
+        regs_[15] = instruction_address + 2;
 
-        u32 cond = instruction >> 28;
-        if (CheckCondition(cond, cpsr_)) {
-            u32 category = (instruction >> 26) & 0b11;
-            if (category == 0b00) {
-                ExecuteDataProcessing(instruction);
-            }
-        }
+        std::printf("Enter THUMB\n");
+        
+        // Thumb decoding will be implemented later.
+        (void)instruction; 
+        return;
+    }
+
+    u32 instruction = bus_.Read32(instruction_address);
+    regs_[15] = instruction_address + 4;
+    std::printf("Enter ARM\n");
+
+    u32 condition = instruction >> 28;
+    if(!CheckCondition(condition, cpsr_)) {
+        return;  // Condition not met; instruction is a no-op.
+    }
+
+    // ARM branch encoding
+    // bits 27-25 must be 101
+    bool is_branch = ((instruction & 0x0E000000u) == 0x0A000000u);
+
+    if(is_branch) {
+        ExecuteBranch(instruction, instruction_address);
+        return;
+    }
+
+    // Data-processing instruction belong to category 00.
+
+    u32 category = (instruction >> 26) & 0xb11;
+
+    if(category == 0b00) {
+        ExecuteDataProcessing(instruction);
     }
 }
