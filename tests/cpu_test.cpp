@@ -1,9 +1,19 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <cstdio>
+#include <utility>
 #include <vector>
+#include "memory/bus.hpp"
 #include "cpu/cpu.hpp"
 
 namespace {
+
+    void Put32(std::vector<u8>& rom, std::size_t offset, u32 value) {
+        rom[offset + 0] = static_cast<u8>(value & 0xFF);
+        rom[offset + 1] = static_cast<u8>((value >> 8) & 0xFF);
+        rom[offset + 2] = static_cast<u8>((value >> 16) & 0xFF);
+        rom[offset + 3] = static_cast<u8>((value >> 24) & 0xFF);
+    }
 
     u32 Encode(u32 cond, u32 opcode, bool s, u32 rn, u32 rd, u32 rm) {
         return (cond << 28) | (0b00 << 26) | (opcode << 21) | ((s ? 1u : 0u) << 20) | (rn << 16) | (rd << 12) | rm;
@@ -123,4 +133,78 @@ TEST_CASE("Cpu::Step applies ROR to a register operand") {
     cpu.Step();
 
     REQUIRE(cpu.GetRegister(0) == 0x18000000);
+}
+
+TEST_CASE("BX switches to Thumb when bit zero is set") {
+    std::vector<u8> rom(0x20, 0);
+    Put32(rom, 0, 0xE12FFF10); // BX r0
+
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    cpu.SetRegister(0, 0x08000005);
+
+    cpu.Step();
+
+    REQUIRE((cpu.GetCpsr() & kThumbFlag) != 0u);
+    REQUIRE(cpu.GetRegister(15) == 0x08000004u);
+}
+
+TEST_CASE("BX switches to ARM when bit zero is clear") {
+    std::vector<u8> rom(0x20, 0);
+    Put32(rom, 0, 0xE12FFF10); // BX r0
+
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    cpu.SetRegister(0, 0x08000008);
+
+    cpu.Step();
+
+    REQUIRE((cpu.GetCpsr() & kThumbFlag) == 0u);
+    REQUIRE(cpu.GetRegister(15) == 0x08000008u);
+}
+
+TEST_CASE("BX uses the Rm target register") {
+    std::vector<u8> rom(0x20, 0);
+    Put32(rom, 0, 0xE12FFF13); // BX r3
+
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    cpu.SetRegister(0, 0x08000010);
+    cpu.SetRegister(3, 0x08000005);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(15) == 0x08000004u);
+    REQUIRE((cpu.GetCpsr() & kThumbFlag) != 0u);
+}
+
+TEST_CASE("BX does not modify the link register") {
+    std::vector<u8> rom(0x20, 0);
+    Put32(rom, 0, 0xE12FFF10); // BX r0
+
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    cpu.SetRegister(0, 0x08000005);
+    cpu.SetRegister(14, 0x12345678);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(14) == 0x12345678u);
+}
+
+TEST_CASE("BX makes the next fetch use Thumb width") {
+    std::vector<u8> rom(0x20, 0);
+    Put32(rom, 0, 0xE12FFF10); // BX r0
+
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    cpu.SetRegister(0, 0x08000005);
+
+    cpu.Step();
+    REQUIRE((cpu.GetCpsr() & kThumbFlag) != 0u);
+    REQUIRE(cpu.GetRegister(15) == 0x08000004u);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(15) == 0x08000006u);
 }

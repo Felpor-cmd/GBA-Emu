@@ -39,8 +39,8 @@ moving to the next box.
 - [x] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ...)
 - [x] Data processing — immediate operand
 - [x] Data processing — shifted register operand (LSL, LSR, ASR, ROR)
-- [ ] Branch (B) and Branch-with-Link (BL)
-- [ ] Branch and Exchange (BX) — this is what actually switches into Thumb state
+- [x] Branch (B) and Branch-with-Link (BL)
+- [x] Branch and Exchange (BX) — this is what actually switches into Thumb state
 - [ ] Single data transfer (LDR/STR, word and byte)
 - [ ] Halfword and signed transfers (LDRH/STRH/LDRSB/LDRSH)
 - [ ] Block data transfer (LDM/STM) — push/pop and context save rely on this

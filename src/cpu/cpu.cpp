@@ -122,6 +122,20 @@ void Cpu::ExecuteBranch(u32 instruction, u32 instruction_address) {
     regs_[15] = target;
 }
 
+void Cpu::ExecuteBranchExchange(u32 instruction) {
+    
+    u32 rm = instruction & 0xF;
+    u32 target = regs_[rm];
+    bool enter_thumb = (target & 1) != 0;
+
+    if (enter_thumb) 
+        cpsr_ |= kThumbFlag;
+    else 
+        cpsr_ &= ~kThumbFlag;
+    
+    regs_[15] = target & ~1u;
+}
+
 bool Cpu::CheckCondition(u32 cond, u32 cpsr) {
     bool n = (cpsr >> 31) & 1;
     bool z = (cpsr >> 30) & 1;
@@ -182,6 +196,14 @@ void Cpu::Step() {
     // ARM branch encoding
     // bits 27-25 must be 101
     bool is_branch = ((instruction & 0x0E000000u) == 0x0A000000u);
+
+    // BX is encoded in the ARM data-processing space.
+    bool is_branch_exchange = ((instruction & 0x0FFFFFF0u) == 0x012FFF10u);
+
+    if (is_branch_exchange) {
+        ExecuteBranchExchange(instruction);
+        return;
+    }
 
     if(is_branch) {
         ExecuteBranch(instruction, instruction_address);
