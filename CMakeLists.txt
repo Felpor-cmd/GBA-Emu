@@ -28,13 +28,28 @@ FetchContent_MakeAvailable(Catch2)
 enable_testing()
 
 add_executable(gba_tests
-    tests/bus_test.cpp
-    tests/cpu_test.cpp
+    test/main_test.cpp
+    test/bus/bus_test_ewram_read_write.cpp
+    test/bus/bus_test_iwram_read_write.cpp
+    test/bus/bus_test_palette_ram_read_write.cpp
+    test/bus/bus_test_vram_read_write.cpp
+    test/bus/bus_test_oam_read_write.cpp
+    test/bus/bus_test_bios_read_zeroed_placeholder_writes_ignored.cpp
+    test/bus/bus_test_io_register_placeholder_read_write.cpp
+    test/bus/bus_test_rom_read_all_three_mirrored_address_windows_bounds_checked.cpp
+    test/bus/bus_test_sram_read_write.cpp
+    test/cpu/cpu_test_condition_code_evaluation.cpp
+    test/cpu/cpu_test_fetch_decode_skeleton.cpp
+    test/cpu/cpu_test_branch_fetch_width.cpp
+    test/cpu/cpu_test_data_processing_register_operand.cpp
+    test/cpu/cpu_test_data_processing_shifted_register_operand.cpp
+    test/cpu/cpu_test_branch_and_exchange.cpp
+    test/cpu/cpu_test_single_data_transfer.cpp
     src/cpu/cpu.cpp
     src/memory/bus.cpp
 )
 target_include_directories(gba_tests PRIVATE src)
-target_link_libraries(gba_tests PRIVATE Catch2::Catch2WithMain)
+target_link_libraries(gba_tests PRIVATE Catch2::Catch2)
 target_compile_options(gba_tests PRIVATE -Wall -Wextra)
 
 include(CTest)
