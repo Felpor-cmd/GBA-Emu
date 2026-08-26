@@ -45,6 +45,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_data_processing_shifted_register_operand.cpp
     test/cpu/cpu_test_branch_and_exchange.cpp
     test/cpu/cpu_test_single_data_transfer.cpp
+    test/cpu/cpu_test_halfword_and_signed_transfers.cpp
     src/cpu/cpu.cpp
     src/memory/bus.cpp
 )

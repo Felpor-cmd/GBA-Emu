@@ -164,6 +164,52 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
     }
 }
 
+void Cpu::ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address) {
+    bool immediate_offset = (instruction >> 22) & 1;
+    bool pre_index = (instruction >> 24) & 1;
+    bool add_offset = (instruction >> 23) & 1;
+    bool writeback = (instruction >> 21) & 1;
+    bool load = (instruction >> 20) & 1;
+    bool signed_transfer = (instruction >> 6) & 1;
+    bool halfword = (instruction >> 5) & 1;
+    u32 rn = (instruction >> 16) & 0xF;
+    u32 rd = (instruction >> 12) & 0xF;
+
+    // S=0,H=0 is not a halfword/signed transfer operation, and signed stores
+    // are not part of the ARM instruction set.
+    if ((!signed_transfer && !halfword) || (signed_transfer && !load)) {
+        return;
+    }
+
+    u32 base = rn == 15 ? instruction_address + 8 : regs_[rn];
+    u32 offset = 0;
+    if (immediate_offset) {
+        offset = (((instruction >> 8) & 0xF) << 4) | (instruction & 0xF);
+    } else {
+        u32 rm = instruction & 0xF;
+        offset = rm == 15 ? instruction_address + 8 : regs_[rm];
+    }
+
+    u32 adjusted_offset = add_offset ? offset : 0 - offset;
+    u32 effective_address = pre_index ? base + adjusted_offset : base;
+
+    if (!load) {
+        bus_.Write16(effective_address, static_cast<u16>(regs_[rd]));
+    } else if (!signed_transfer) {
+        regs_[rd] = bus_.Read16(effective_address);
+    } else if (halfword) {
+        u32 value = bus_.Read16(effective_address);
+        regs_[rd] = (value & 0x8000u) ? value | 0xFFFF0000u : value;
+    } else {
+        u32 value = bus_.Read8(effective_address);
+        regs_[rd] = (value & 0x80u) ? value | 0xFFFFFF00u : value;
+    }
+
+    if (rn != 15 && (!pre_index || writeback)) {
+        regs_[rn] = base + adjusted_offset;
+    }
+}
+
 void Cpu::ExecuteBranch(u32 instruction, u32 instruction_address) {
     // Bit 24 distinguishes B from BL.
     bool link = (instruction >> 24) & 1;
@@ -276,6 +322,16 @@ void Cpu::Step() {
 
     if(is_branch) {
         ExecuteBranch(instruction, instruction_address);
+        return;
+    }
+
+    bool is_halfword_transfer =
+        (instruction & 0x0E000000u) == 0 &&
+        (instruction & 0x00000090u) == 0x00000090u &&
+        (instruction & 0x00000060u) != 0;
+
+    if (is_halfword_transfer) {
+        ExecuteHalfwordDataTransfer(instruction, instruction_address);
         return;
     }
 

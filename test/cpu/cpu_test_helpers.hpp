@@ -54,6 +54,19 @@ inline u32 EncodeRegisterDataTransfer(u32 cond, bool load, bool byte, u32 rn, u3
            (shift_type << 5) | (rm & 0xF);
 }
 
+inline u32 EncodeHalfwordDataTransfer(u32 cond, bool load, bool signed_transfer,
+                                      bool halfword, u32 rn, u32 rd, s32 offset,
+                                      bool pre_index = true, bool writeback = false) {
+    bool add_offset = offset >= 0;
+    u32 magnitude = static_cast<u32>(add_offset ? offset : -offset);
+    return (cond << 28) | (pre_index ? 1u : 0u) << 24 |
+           (add_offset ? 1u : 0u) << 23 | (1u << 22) |
+           (writeback ? 1u : 0u) << 21 | (load ? 1u : 0u) << 20 |
+           (rn << 16) | (rd << 12) | (((magnitude >> 4) & 0xF) << 8) |
+           (1u << 7) | (signed_transfer ? 1u : 0u) << 6 |
+           (halfword ? 1u : 0u) << 5 | (1u << 4) | (magnitude & 0xF);
+}
+
 inline std::vector<u8> AsRom(u32 instr) {
     return {static_cast<u8>(instr), static_cast<u8>(instr >> 8),
             static_cast<u8>(instr >> 16), static_cast<u8>(instr >> 24)};

@@ -41,8 +41,8 @@ moving to the next box.
 - [x] Data processing — shifted register operand (LSL, LSR, ASR, ROR)
 - [x] Branch (B) and Branch-with-Link (BL)
 - [x] Branch and Exchange (BX) — this is what actually switches into Thumb state
-- [ ] Single data transfer (LDR/STR, word and byte)
-- [ ] Halfword and signed transfers (LDRH/STRH/LDRSB/LDRSH)
+- [x] Single data transfer (LDR/STR, word and byte)
+- [x] Halfword and signed transfers (LDRH/STRH/LDRSB/LDRSH)
 - [ ] Block data transfer (LDM/STM) — push/pop and context save rely on this
 - [ ] Multiply and multiply-accumulate (MUL, MLA)
 - [ ] PSR transfer (MRS/MSR) — direct read/write of CPSR and SPSR
@@ -184,4 +184,3 @@ correct."
 ## Notes
 
 2b.1 One honest thing to flag and set aside for now: on real hardware, if Rn or Rm is r15 (the PC), the value read isn't quite the PC you'd expect — a pipelining quirk makes it read as current instruction address + 8. We're not modeling a pipeline, so this'll be slightly wrong if a game ever uses the PC as a math operand. It's a real gap, but a narrow one — safe to note and revisit later rather than solve today.
-
