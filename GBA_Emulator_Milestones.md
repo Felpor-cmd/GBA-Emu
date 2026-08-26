@@ -43,7 +43,7 @@ moving to the next box.
 - [x] Branch and Exchange (BX) — this is what actually switches into Thumb state
 - [x] Single data transfer (LDR/STR, word and byte)
 - [x] Halfword and signed transfers (LDRH/STRH/LDRSB/LDRSH)
-- [ ] Block data transfer (LDM/STM) — push/pop and context save rely on this
+- [x] Block data transfer (LDM/STM) — push/pop and context save rely on this
 - [ ] Multiply and multiply-accumulate (MUL, MLA)
 - [ ] PSR transfer (MRS/MSR) — direct read/write of CPSR and SPSR
 - [ ] Software interrupt (SWI) — a stub that just logs "BIOS call requested" is a fine first version

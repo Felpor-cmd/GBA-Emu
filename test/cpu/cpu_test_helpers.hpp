@@ -67,6 +67,18 @@ inline u32 EncodeHalfwordDataTransfer(u32 cond, bool load, bool signed_transfer,
            (halfword ? 1u : 0u) << 5 | (1u << 4) | (magnitude & 0xF);
 }
 
+inline u32 EncodeBlockDataTransfer(u32 cond, bool load, u32 rn, u16 register_list,
+                                   bool pre_index, bool add_offset,
+                                   bool writeback = false, bool set_status = false) {
+    return (cond << 28) | (0b100 << 25) |
+           (pre_index ? 1u : 0u) << 24 |
+           (add_offset ? 1u : 0u) << 23 |
+           (set_status ? 1u : 0u) << 22 |
+           (writeback ? 1u : 0u) << 21 |
+           (load ? 1u : 0u) << 20 |
+           (rn << 16) | register_list;
+}
+
 inline std::vector<u8> AsRom(u32 instr) {
     return {static_cast<u8>(instr), static_cast<u8>(instr >> 8),
             static_cast<u8>(instr >> 16), static_cast<u8>(instr >> 24)};

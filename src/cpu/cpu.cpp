@@ -210,6 +210,57 @@ void Cpu::ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address) 
     }
 }
 
+void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
+    bool pre_index = (instruction >> 24) & 1;
+    bool add_offset = (instruction >> 23) & 1;
+    bool set_status = (instruction >> 22) & 1;
+    bool writeback = (instruction >> 21) & 1;
+    bool load = (instruction >> 20) & 1;
+    u32 rn = (instruction >> 16) & 0xF;
+    u32 register_list = instruction & 0xFFFF;
+
+    // Banked registers and SPSR restoration are not implemented yet.
+    if (set_status || register_list == 0) {
+        return;
+    }
+
+    u32 register_count = 0;
+    for (u32 reg = 0; reg < 16; ++reg) {
+        if (register_list & (1u << reg)) {
+            ++register_count;
+        }
+    }
+
+    u32 base = rn == 15 ? instruction_address + 8 : regs_[rn];
+    u32 address = 0;
+    if (add_offset) {
+        address = pre_index ? base + 4 : base;
+    } else {
+        address = pre_index
+            ? base - register_count * 4
+            : base - (register_count - 1) * 4;
+    }
+
+    for (u32 reg = 0; reg < 16; ++reg) {
+        if ((register_list & (1u << reg)) == 0) {
+            continue;
+        }
+
+        if (load) {
+            regs_[reg] = bus_.Read32(address);
+        } else {
+            bus_.Write32(address, regs_[reg]);
+        }
+        address += 4;
+    }
+
+    if (writeback && rn != 15) {
+        regs_[rn] = add_offset
+            ? base + register_count * 4
+            : base - register_count * 4;
+    }
+}
+
 void Cpu::ExecuteBranch(u32 instruction, u32 instruction_address) {
     // Bit 24 distinguishes B from BL.
     bool link = (instruction >> 24) & 1;
@@ -332,6 +383,13 @@ void Cpu::Step() {
 
     if (is_halfword_transfer) {
         ExecuteHalfwordDataTransfer(instruction, instruction_address);
+        return;
+    }
+
+    bool is_block_data_transfer = ((instruction >> 25) & 0x7) == 0b100;
+
+    if (is_block_data_transfer) {
+        ExecuteBlockDataTransfer(instruction, instruction_address);
         return;
     }
 
