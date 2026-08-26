@@ -21,6 +21,7 @@ class Cpu {
     void ExecuteBranch(u32 instruction, u32 instruction_address);
     void ExecuteBranchExchange(u32 instruction);
     void ExecuteDataProcessing(u32 instruction);
+    void ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address);
     void Reset();  // Set up post-BIOS register/mode state.
     void Step();   // Fetch-decode-execute one instruction. Empty for now.
 

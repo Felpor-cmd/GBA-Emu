@@ -25,6 +25,34 @@ namespace {
         return {result, carry, overflow};
     }
 
+    u32 ShiftRegisterOffset(u32 value, unsigned shift_type, unsigned amount,
+                            bool carry_in) {
+        switch (shift_type) {
+            case 0: // LSL
+                return amount >= 32 ? 0 : value << amount;
+            case 1: // LSR
+                if (amount == 0) {
+                    amount = 32;
+                }
+                return amount >= 32 ? 0 : value >> amount;
+            case 2: // ASR
+                if (amount == 0) {
+                    amount = 32;
+                }
+                if (amount >= 32) {
+                    return (value & 0x80000000u) ? 0xFFFFFFFFu : 0;
+                }
+                return static_cast<u32>(static_cast<s32>(value) >> amount);
+            case 3: // ROR / RRX
+                if (amount == 0) {
+                    return (carry_in ? 0x80000000u : 0) | (value >> 1);
+                }
+                return RotateRight(value, amount);
+            default:
+                return value;
+        }
+    }
+
 }  // namespace
 
 void Cpu::ExecuteDataProcessing(u32 instruction) {
@@ -92,6 +120,47 @@ void Cpu::ExecuteDataProcessing(u32 instruction) {
         u32 c = carry_out ? 1u : 0u;
         u32 v = overflow_out ? 1u : 0u;
         cpsr_ = (cpsr_ & 0x0FFFFFFF) | (n << 31) | (z << 30) | (c << 29) | (v << 28);
+    }
+}
+
+void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
+    bool register_offset = (instruction >> 25) & 1;
+    bool pre_index = (instruction >> 24) & 1;
+    bool add_offset = (instruction >> 23) & 1;
+    bool byte_transfer = (instruction >> 22) & 1;
+    bool writeback = (instruction >> 21) & 1;
+    bool load = (instruction >> 20) & 1;
+    u32 rn = (instruction >> 16) & 0xF;
+    u32 rd = (instruction >> 12) & 0xF;
+
+    u32 base = rn == 15 ? instruction_address + 8 : regs_[rn];
+    u32 offset = 0;
+
+    if (register_offset) {
+        u32 rm = instruction & 0xF;
+        u32 offset_value = rm == 15 ? instruction_address + 8 : regs_[rm];
+        unsigned shift_amount = (instruction >> 7) & 0x1F;
+        unsigned shift_type = (instruction >> 5) & 0x3;
+        offset = ShiftRegisterOffset(offset_value, shift_type, shift_amount,
+                                      (cpsr_ >> 29) & 1);
+    } else {
+        offset = instruction & 0xFFF;
+    }
+
+    u32 adjusted_offset = add_offset ? offset : 0 - offset;
+    u32 effective_address = pre_index ? base + adjusted_offset : base;
+
+    if (load) {
+        regs_[rd] = byte_transfer ? bus_.Read8(effective_address)
+                                   : bus_.Read32(effective_address);
+    } else if (byte_transfer) {
+        bus_.Write8(effective_address, static_cast<u8>(regs_[rd]));
+    } else {
+        bus_.Write32(effective_address, regs_[rd]);
+    }
+
+    if (rn != 15 && (!pre_index || writeback)) {
+        regs_[rn] = base + adjusted_offset;
     }
 }
 
@@ -210,11 +279,11 @@ void Cpu::Step() {
         return;
     }
 
-    // Data-processing instruction belong to category 00.
-
-    u32 category = (instruction >> 26) & 0xb11;
+    u32 category = (instruction >> 26) & 0b11;
 
     if(category == 0b00) {
         ExecuteDataProcessing(instruction);
+    } else if (category == 0b01) {
+        ExecuteSingleDataTransfer(instruction, instruction_address);
     }
 }
