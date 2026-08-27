@@ -21,6 +21,8 @@ class Cpu {
     void ExecuteBranch(u32 instruction, u32 instruction_address);
     void ExecuteBranchExchange(u32 instruction);
     void ExecuteMultiply(u32 instruction);
+    void ExecuteMrs(u32 instruction);
+    void ExecuteMsr(u32 instruction, bool immediate);
     void ExecuteDataProcessing(u32 instruction);
     void ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address);
     void ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address);
@@ -29,9 +31,27 @@ class Cpu {
     void Step();   // Fetch-decode-execute one instruction. Empty for now.
 
 private:
+    void SaveBankedRegisters(u32 mode);
+    void LoadBankedRegisters(u32 mode);
+    bool SwitchMode(u32 new_mode);
+    u32* CurrentSpsr();
+
     std::array<u32, 16> regs_{};  // r0-r15, where r15 is the program counter.
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).
 
+    std::array<u32, 5> shared_r8_r12_{};
+    std::array<u32, 7> fiq_r8_r14_{};
+    std::array<u32, 2> user_system_r13_r14_{};
+    std::array<u32, 2> irq_r13_r14_{};
+    std::array<u32, 2> svc_r13_r14_{};
+    std::array<u32, 2> abt_r13_r14_{};
+    std::array<u32, 2> und_r13_r14_{};
+
+    u32 spsr_fiq_ = 0;
+    u32 spsr_irq_ = 0;
+    u32 spsr_svc_ = 0;
+    u32 spsr_abt_ = 0;
+    u32 spsr_und_ = 0;
 
     Bus& bus_;
 

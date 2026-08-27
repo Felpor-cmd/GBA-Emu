@@ -7,6 +7,39 @@ Cpu::Cpu(Bus& bus) : bus_(bus) {
 
 namespace {
 
+    constexpr u32 kModeMask = 0x1F;
+    constexpr u32 kUserMode = 0x10;
+    constexpr u32 kFiqMode = 0x11;
+    constexpr u32 kIrqMode = 0x12;
+    constexpr u32 kSupervisorMode = 0x13;
+    constexpr u32 kAbortMode = 0x17;
+    constexpr u32 kUndefinedMode = 0x1B;
+    constexpr u32 kSystemMode = 0x1F;
+
+    bool IsValidMode(u32 mode) {
+        switch (mode) {
+            case kUserMode:
+            case kFiqMode:
+            case kIrqMode:
+            case kSupervisorMode:
+            case kAbortMode:
+            case kUndefinedMode:
+            case kSystemMode:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    u32 PsrWriteMask(u32 field_mask) {
+        u32 mask = 0;
+        if (field_mask & 0x8) mask |= 0xFF000000u;
+        if (field_mask & 0x4) mask |= 0x00FF0000u;
+        if (field_mask & 0x2) mask |= 0x0000FF00u;
+        if (field_mask & 0x1) mask |= 0x000000FFu;
+        return mask & 0xF00000FFu;
+    }
+
     struct AddResult { u32 value; bool carry; bool overflow; };
 
     u32 RotateRight(u32 value, unsigned amount) {
@@ -54,6 +87,154 @@ namespace {
     }
 
 }  // namespace
+
+void Cpu::SaveBankedRegisters(u32 mode) {
+    if (mode == kFiqMode) {
+        for (u32 reg = 8; reg <= 14; ++reg) {
+            fiq_r8_r14_[reg - 8] = regs_[reg];
+        }
+        return;
+    }
+
+    for (u32 reg = 8; reg <= 12; ++reg) {
+        shared_r8_r12_[reg - 8] = regs_[reg];
+    }
+
+    std::array<u32, 2>* bank = nullptr;
+    switch (mode) {
+        case kUserMode:
+        case kSystemMode: bank = &user_system_r13_r14_; break;
+        case kIrqMode: bank = &irq_r13_r14_; break;
+        case kSupervisorMode: bank = &svc_r13_r14_; break;
+        case kAbortMode: bank = &abt_r13_r14_; break;
+        case kUndefinedMode: bank = &und_r13_r14_; break;
+        default: return;
+    }
+    (*bank)[0] = regs_[13];
+    (*bank)[1] = regs_[14];
+}
+
+void Cpu::LoadBankedRegisters(u32 mode) {
+    if (mode == kFiqMode) {
+        for (u32 reg = 8; reg <= 14; ++reg) {
+            regs_[reg] = fiq_r8_r14_[reg - 8];
+        }
+        return;
+    }
+
+    for (u32 reg = 8; reg <= 12; ++reg) {
+        regs_[reg] = shared_r8_r12_[reg - 8];
+    }
+
+    const std::array<u32, 2>* bank = nullptr;
+    switch (mode) {
+        case kUserMode:
+        case kSystemMode: bank = &user_system_r13_r14_; break;
+        case kIrqMode: bank = &irq_r13_r14_; break;
+        case kSupervisorMode: bank = &svc_r13_r14_; break;
+        case kAbortMode: bank = &abt_r13_r14_; break;
+        case kUndefinedMode: bank = &und_r13_r14_; break;
+        default: return;
+    }
+    regs_[13] = (*bank)[0];
+    regs_[14] = (*bank)[1];
+}
+
+bool Cpu::SwitchMode(u32 new_mode) {
+    if (!IsValidMode(new_mode)) {
+        return false;
+    }
+
+    u32 old_mode = cpsr_ & kModeMask;
+    if (old_mode == new_mode) {
+        return true;
+    }
+
+    SaveBankedRegisters(old_mode);
+    LoadBankedRegisters(new_mode);
+    cpsr_ = (cpsr_ & ~kModeMask) | new_mode;
+    return true;
+}
+
+u32* Cpu::CurrentSpsr() {
+    switch (cpsr_ & kModeMask) {
+        case kFiqMode: return &spsr_fiq_;
+        case kIrqMode: return &spsr_irq_;
+        case kSupervisorMode: return &spsr_svc_;
+        case kAbortMode: return &spsr_abt_;
+        case kUndefinedMode: return &spsr_und_;
+        default: return nullptr;
+    }
+}
+
+void Cpu::ExecuteMrs(u32 instruction) {
+    bool read_spsr = (instruction >> 22) & 1;
+    u32 rd = (instruction >> 12) & 0xF;
+    if (rd == 15) {
+        return;
+    }
+
+    if (!read_spsr) {
+        regs_[rd] = cpsr_;
+        return;
+    }
+
+    u32* spsr = CurrentSpsr();
+    if (spsr != nullptr) {
+        regs_[rd] = *spsr;
+    }
+}
+
+void Cpu::ExecuteMsr(u32 instruction, bool immediate) {
+    bool write_spsr = (instruction >> 22) & 1;
+    u32 field_mask = (instruction >> 16) & 0xF;
+    u32 operand = 0;
+
+    if (immediate) {
+        u32 imm8 = instruction & 0xFF;
+        unsigned rotate_amount = ((instruction >> 8) & 0xF) * 2;
+        operand = RotateRight(imm8, rotate_amount);
+    } else {
+        u32 rm = instruction & 0xF;
+        if (rm == 15) {
+            return;
+        }
+        operand = regs_[rm];
+    }
+
+    u32 write_mask = PsrWriteMask(field_mask);
+    if (write_spsr) {
+        u32* spsr = CurrentSpsr();
+        if (spsr == nullptr) {
+            return;
+        }
+
+        u32 new_spsr = (*spsr & ~write_mask) | (operand & write_mask);
+        if ((write_mask & kModeMask) != 0 &&
+            !IsValidMode(new_spsr & kModeMask)) {
+            return;
+        }
+        *spsr = new_spsr;
+        return;
+    }
+
+    u32 current_mode = cpsr_ & kModeMask;
+    if (current_mode == kUserMode) {
+        write_mask &= 0xF0000000u;
+    }
+
+    u32 new_cpsr = (cpsr_ & ~write_mask) | (operand & write_mask);
+    new_cpsr = (new_cpsr & ~kThumbFlag) | (cpsr_ & kThumbFlag);
+
+    u32 new_mode = new_cpsr & kModeMask;
+    if (!IsValidMode(new_mode)) {
+        return;
+    }
+    if (!SwitchMode(new_mode)) {
+        return;
+    }
+    cpsr_ = new_cpsr;
+}
 
 void Cpu::ExecuteMultiply(u32 instruction) {
     bool accumulate = (instruction >> 21) & 1;
@@ -254,7 +435,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
     u32 rn = (instruction >> 16) & 0xF;
     u32 register_list = instruction & 0xFFFF;
 
-    // Banked registers and SPSR restoration are not implemented yet.
+    // SPSR restoration for LDM with the S bit is not implemented yet.
     if (set_status || register_list == 0) {
         return;
     }
@@ -365,7 +546,20 @@ bool Cpu::CheckCondition(u32 cond, u32 cpsr) {
 
 void Cpu::Reset() {
     regs_.fill(0);
+    shared_r8_r12_.fill(0);
+    fiq_r8_r14_.fill(0);
+    user_system_r13_r14_.fill(0);
+    irq_r13_r14_.fill(0);
+    svc_r13_r14_.fill(0);
+    abt_r13_r14_.fill(0);
+    und_r13_r14_.fill(0);
+    spsr_fiq_ = 0;
+    spsr_irq_ = 0;
+    spsr_svc_ = 0;
+    spsr_abt_ = 0;
+    spsr_und_ = 0;
     regs_[13] = 0x03007F00;  // SP: matches the post-BIOS stack pointer (GBATEK: BIOS).
+    user_system_r13_r14_[0] = regs_[13];
     regs_[15] = 0x08000000;  // instruction_address: cartridge ROM entry point.
     cpsr_ = 0x1F;             // System mode, ARM state, IRQ/FIQ unmasked.
 }
@@ -404,6 +598,12 @@ void Cpu::Step() {
     // MUL and MLA are also encoded in the ARM data-processing space.
     bool is_multiply = ((instruction & 0x0FC000F0u) == 0x00000090u);
 
+    bool is_mrs = ((instruction & 0x0FBF0FFFu) == 0x010F0000u);
+    bool is_msr_register =
+        ((instruction & 0x0FB0FFF0u) == 0x0120F000u);
+    bool is_msr_immediate =
+        ((instruction & 0x0FB0F000u) == 0x0320F000u);
+
     if (is_branch_exchange) {
         ExecuteBranchExchange(instruction);
         return;
@@ -411,6 +611,21 @@ void Cpu::Step() {
 
     if (is_multiply) {
         ExecuteMultiply(instruction);
+        return;
+    }
+
+    if (is_mrs) {
+        ExecuteMrs(instruction);
+        return;
+    }
+
+    if (is_msr_register) {
+        ExecuteMsr(instruction, false);
+        return;
+    }
+
+    if (is_msr_immediate) {
+        ExecuteMsr(instruction, true);
         return;
     }
 

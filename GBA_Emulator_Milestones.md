@@ -45,7 +45,7 @@ moving to the next box.
 - [x] Halfword and signed transfers (LDRH/STRH/LDRSB/LDRSH)
 - [x] Block data transfer (LDM/STM) — push/pop and context save rely on this
 - [x] Multiply and multiply-accumulate (MUL, MLA)
-- [ ] PSR transfer (MRS/MSR) — direct read/write of CPSR and SPSR
+- [x] PSR transfer (MRS/MSR) — direct read/write of CPSR and SPSR
 - [ ] Software interrupt (SWI) — a stub that just logs "BIOS call requested" is a fine first version
 
 ### 2c. Thumb instruction set
