@@ -55,6 +55,41 @@ namespace {
 
 }  // namespace
 
+void Cpu::ExecuteMultiply(u32 instruction) {
+    bool accumulate = (instruction >> 21) & 1;
+    bool set_flags = (instruction >> 20) & 1;
+    u32 rd = (instruction >> 16) & 0xF;
+    u32 rn = (instruction >> 12) & 0xF;
+    u32 rs = (instruction >> 8) & 0xF;
+    u32 rm = instruction & 0xF;
+
+    bool invalid_registers = rd == 15 || rs == 15 || rm == 15 || rd == rm;
+    bool invalid_accumulator = accumulate ? rn == 15 : rn != 0;
+    if (invalid_registers || invalid_accumulator) {
+        return;
+    }
+
+    u32 rm_value = regs_[rm];
+    u32 rs_value = regs_[rs];
+    u32 rn_value = accumulate ? regs_[rn] : 0;
+
+    u64 result64 = static_cast<u64>(rm_value) * static_cast<u64>(rs_value);
+    if (accumulate) {
+        result64 += rn_value;
+    }
+    u32 result = static_cast<u32>(result64);
+
+    regs_[rd] = result;
+
+    if (set_flags) {
+        constexpr u32 kNegativeFlag = 1u << 31;
+        constexpr u32 kZeroFlag = 1u << 30;
+        cpsr_ = (cpsr_ & ~(kNegativeFlag | kZeroFlag)) |
+                (result & kNegativeFlag) |
+                (result == 0 ? kZeroFlag : 0);
+    }
+}
+
 void Cpu::ExecuteDataProcessing(u32 instruction) {
     u32 opcode = (instruction >> 21) & 0xF;
     bool set_flags = (instruction >> 20) & 1;
@@ -366,8 +401,16 @@ void Cpu::Step() {
     // BX is encoded in the ARM data-processing space.
     bool is_branch_exchange = ((instruction & 0x0FFFFFF0u) == 0x012FFF10u);
 
+    // MUL and MLA are also encoded in the ARM data-processing space.
+    bool is_multiply = ((instruction & 0x0FC000F0u) == 0x00000090u);
+
     if (is_branch_exchange) {
         ExecuteBranchExchange(instruction);
+        return;
+    }
+
+    if (is_multiply) {
+        ExecuteMultiply(instruction);
         return;
     }
 

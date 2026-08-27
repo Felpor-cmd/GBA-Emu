@@ -20,6 +20,7 @@ class Cpu {
 
     void ExecuteBranch(u32 instruction, u32 instruction_address);
     void ExecuteBranchExchange(u32 instruction);
+    void ExecuteMultiply(u32 instruction);
     void ExecuteDataProcessing(u32 instruction);
     void ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address);
     void ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address);
