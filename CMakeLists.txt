@@ -11,6 +11,10 @@ endif()
 add_executable(gba_emu
     src/main.cpp
     src/cpu/cpu.cpp
+    src/cpu/cpu_branch.cpp
+    src/cpu/cpu_data_processing.cpp
+    src/cpu/cpu_memory.cpp
+    src/cpu/cpu_psr.cpp
     src/memory/bus.cpp
 )
 
@@ -50,6 +54,10 @@ add_executable(gba_tests
     test/cpu/cpu_test_multiply.cpp
     test/cpu/cpu_test_psr_transfer.cpp
     src/cpu/cpu.cpp
+    src/cpu/cpu_branch.cpp
+    src/cpu/cpu_data_processing.cpp
+    src/cpu/cpu_memory.cpp
+    src/cpu/cpu_psr.cpp
     src/memory/bus.cpp
 )
 target_include_directories(gba_tests PRIVATE src)

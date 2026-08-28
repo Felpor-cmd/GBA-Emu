@@ -3,8 +3,8 @@
 #include "../memory/bus.hpp"
 #include "../types.hpp"
 
-// The ARM7TDMI core. Holds the register file and will grow to hold banked
-// registers (for FIQ/IRQ/SVC/etc. modes) once mode switching is implemented.
+// The ARM7TDMI core. The active register view is backed by mode-specific banks
+// for exception handling and SPSR support.
 
 constexpr u32 kThumbFlag = 0x20; // CPSR bit 5 — the "T" bit
 
@@ -28,7 +28,7 @@ class Cpu {
     void ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address);
     void ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address);
     void Reset();  // Set up post-BIOS register/mode state.
-    void Step();   // Fetch-decode-execute one instruction. Empty for now.
+    void Step();   // Fetch-decode-execute one instruction.
 
 private:
     void SaveBankedRegisters(u32 mode);
