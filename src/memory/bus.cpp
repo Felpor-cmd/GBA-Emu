@@ -6,6 +6,7 @@ u8 Bus::Read8(u32 address) const {
     // TODO: switch on the top bits of `address` to route to BIOS, EWRAM,
     // IWRAM, I/O registers, palette, VRAM, OAM, ROM, or SRAM.
     // Address ranges: https://problemkaputt.de/gbatek.htm#gbamemorymap
+    // For now, just return 0 for all reads.
 
     switch (address >> 24){
         case 0x00: return bios_[address & (kBiosSize - 1)];
