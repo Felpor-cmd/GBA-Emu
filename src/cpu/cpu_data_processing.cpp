@@ -81,8 +81,8 @@ void Cpu::ExecuteDataProcessing(u32 instruction) {
         u32 z = (result == 0) ? 1u : 0u;
         u32 c = carry_out ? 1u : 0u;
         u32 v = overflow_out ? 1u : 0u;
-        cpsr_ = (cpsr_ & 0x0FFFFFFF) | (n << 31) | (z << 30) |
-                (c << 29) | (v << 28);
+        WritePsr(false, (n << 31) | (z << 30) | (c << 29) | (v << 28),
+                 0xF0000000u);
     }
 }
 
@@ -115,8 +115,8 @@ void Cpu::ExecuteMultiply(u32 instruction) {
     if (set_flags) {
         constexpr u32 kNegativeFlag = 1u << 31;
         constexpr u32 kZeroFlag = 1u << 30;
-        cpsr_ = (cpsr_ & ~(kNegativeFlag | kZeroFlag)) |
-                (result & kNegativeFlag) |
-                (result == 0 ? kZeroFlag : 0);
+        WritePsr(false, (result & kNegativeFlag) |
+                          (result == 0 ? kZeroFlag : 0),
+                 kNegativeFlag | kZeroFlag);
     }
 }

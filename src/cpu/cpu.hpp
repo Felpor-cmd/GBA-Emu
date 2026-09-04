@@ -33,8 +33,8 @@ class Cpu {
 private:
     void SaveBankedRegisters(u32 mode);
     void LoadBankedRegisters(u32 mode);
-    bool SwitchMode(u32 new_mode);
     u32* CurrentSpsr();
+    bool WritePsr(bool write_spsr, u32 value, u32 write_mask);
 
     std::array<u32, 16> regs_{};  // r0-r15, where r15 is the program counter.
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).

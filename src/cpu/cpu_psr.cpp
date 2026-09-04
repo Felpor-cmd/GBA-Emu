@@ -91,22 +91,6 @@ void Cpu::LoadBankedRegisters(u32 mode) {
     regs_[14] = (*bank)[1];
 }
 
-bool Cpu::SwitchMode(u32 new_mode) {
-    if (!IsValidMode(new_mode)) {
-        return false;
-    }
-
-    u32 old_mode = cpsr_ & kModeMask;
-    if (old_mode == new_mode) {
-        return true;
-    }
-
-    SaveBankedRegisters(old_mode);
-    LoadBankedRegisters(new_mode);
-    cpsr_ = (cpsr_ & ~kModeMask) | new_mode;
-    return true;
-}
-
 u32* Cpu::CurrentSpsr() {
     switch (cpsr_ & kModeMask) {
         case kFiqMode: return &spsr_fiq_;
@@ -116,6 +100,35 @@ u32* Cpu::CurrentSpsr() {
         case kUndefinedMode: return &spsr_und_;
         default: return nullptr;
     }
+}
+
+bool Cpu::WritePsr(bool write_spsr, u32 value, u32 write_mask) {
+    u32* psr = write_spsr ? CurrentSpsr() : &cpsr_;
+    if (psr == nullptr) {
+        return false;
+    }
+
+    u32 new_psr = (*psr & ~write_mask) | (value & write_mask);
+    if (write_spsr) {
+        if ((write_mask & kModeMask) != 0 &&
+            !IsValidMode(new_psr & kModeMask)) {
+            return false;
+        }
+        *psr = new_psr;
+        return true;
+    }
+
+    u32 old_mode = cpsr_ & kModeMask;
+    u32 new_mode = new_psr & kModeMask;
+    if (!IsValidMode(new_mode)) {
+        return false;
+    }
+    if (old_mode != new_mode) {
+        SaveBankedRegisters(old_mode);
+        LoadBankedRegisters(new_mode);
+    }
+    cpsr_ = new_psr;
+    return true;
 }
 
 void Cpu::ExecuteMrs(u32 instruction) {
@@ -154,35 +167,11 @@ void Cpu::ExecuteMsr(u32 instruction, bool immediate) {
     }
 
     u32 write_mask = PsrWriteMask(field_mask);
-    if (write_spsr) {
-        u32* spsr = CurrentSpsr();
-        if (spsr == nullptr) {
-            return;
-        }
-
-        u32 new_spsr = (*spsr & ~write_mask) | (operand & write_mask);
-        if ((write_mask & kModeMask) != 0 &&
-            !IsValidMode(new_spsr & kModeMask)) {
-            return;
-        }
-        *spsr = new_spsr;
-        return;
-    }
-
-    u32 current_mode = cpsr_ & kModeMask;
-    if (current_mode == kUserMode) {
+    if (!write_spsr && (cpsr_ & kModeMask) == kUserMode) {
         write_mask &= 0xF0000000u;
     }
-
-    u32 new_cpsr = (cpsr_ & ~write_mask) | (operand & write_mask);
-    new_cpsr = (new_cpsr & ~kThumbFlag) | (cpsr_ & kThumbFlag);
-
-    u32 new_mode = new_cpsr & kModeMask;
-    if (!IsValidMode(new_mode)) {
-        return;
+    if (!write_spsr) {
+        write_mask &= ~kThumbFlag;
     }
-    if (!SwitchMode(new_mode)) {
-        return;
-    }
-    cpsr_ = new_cpsr;
+    WritePsr(write_spsr, operand, write_mask);
 }

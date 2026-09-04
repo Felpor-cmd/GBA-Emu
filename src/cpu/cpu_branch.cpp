@@ -32,11 +32,7 @@ void Cpu::ExecuteBranchExchange(u32 instruction) {
     u32 target = regs_[rm];
     bool enter_thumb = (target & 1) != 0;
 
-    if (enter_thumb) {
-        cpsr_ |= kThumbFlag;
-    } else {
-        cpsr_ &= ~kThumbFlag;
-    }
+    WritePsr(false, enter_thumb ? kThumbFlag : 0, kThumbFlag);
 
     regs_[15] = target & ~1u;
 }
