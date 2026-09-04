@@ -46,7 +46,210 @@ moving to the next box.
 - [x] Block data transfer (LDM/STM) — push/pop and context save rely on this
 - [x] Multiply and multiply-accumulate (MUL, MLA)
 - [x] PSR transfer (MRS/MSR) — direct read/write of CPSR and SPSR
-- [ ] Software interrupt (SWI) — a stub that just logs "BIOS call requested" is a fine first version
+- [x] Software interrupt (SWI) — a stub that just logs "BIOS call requested" is a fine first version
+
+#### Remaining ARMv4T instructions
+
+- [ ] Long multiply:
+  - [ ] UMULL — unsigned 32 × 32 → 64-bit result
+  - [ ] UMLAL — unsigned multiply and 64-bit accumulate
+  - [ ] SMULL — signed 32 × 32 → 64-bit result
+  - [ ] SMLAL — signed multiply and 64-bit accumulate
+  - [ ] N/Z flag behavior when the S bit is set
+  - [ ] ARM7TDMI operand restrictions
+
+- [ ] Single data swap:
+  - [ ] SWP — atomic word swap
+  - [ ] SWPB — atomic byte swap
+  - [ ] Byte-load zero extension
+  - [ ] Register restriction and overlap behavior
+
+- [ ] User-mode single-transfer variants:
+  - [ ] LDRT
+  - [ ] STRT
+  - [ ] LDRBT
+  - [ ] STRBT
+  - [ ] Treat privilege distinction appropriately on the GBA, which has no MMU
+
+- [ ] Coprocessor instruction decoding:
+  - [ ] CDP
+  - [ ] LDC
+  - [ ] STC
+  - [ ] MCR
+  - [ ] MRC
+  - [ ] Route them to Undefined Instruction because the GBA has no usable coprocessor
+
+#### Data-processing completeness pass
+
+- [ ] Verify all 16 data-processing operations:
+  - [ ] AND
+  - [ ] EOR
+  - [ ] SUB
+  - [ ] RSB
+  - [ ] ADD
+  - [ ] ADC
+  - [ ] SBC
+  - [ ] RSC
+  - [ ] TST
+  - [ ] TEQ
+  - [ ] CMP
+  - [ ] CMN
+  - [ ] ORR
+  - [ ] MOV
+  - [ ] BIC
+  - [ ] MVN
+
+- [ ] Verify arithmetic flag behavior:
+  - [ ] N and Z
+  - [ ] Carry and borrow
+  - [ ] Signed overflow
+  - [ ] ADC/SBC/RSC carry input
+  - [ ] Logical-operation shifter carry
+
+- [ ] Verify all shift edge cases:
+  - [ ] Shift amount zero
+  - [ ] Shift amount 1–31
+  - [ ] Shift amount 32
+  - [ ] Shift amount greater than 32
+  - [ ] Register-specified shift uses the low eight bits
+  - [ ] RRX behavior for `ROR #0`
+  - [ ] Correct carry result for every shift type
+
+#### Program-counter behavior
+
+- [ ] Correct architectural PC value when `r15` is read:
+  - [ ] Normal ARM operand reads
+  - [ ] Register-specified shift operands
+  - [ ] Address calculation
+  - [ ] Store instructions
+
+- [ ] Correct behavior when `r15` is written:
+  - [ ] Data-processing destination is PC
+  - [ ] LDR destination is PC
+  - [ ] LDM register list contains PC
+  - [ ] Correct address alignment
+  - [ ] Pipeline refill or equivalent fetch reset
+
+- [ ] Exception-return data-processing behavior:
+  - [ ] `S = 1` and `Rd = PC`
+  - [ ] Restore CPSR from the current SPSR
+  - [ ] Switch register banks when the restored mode changes
+  - [ ] Restore ARM/Thumb state
+
+#### Memory-transfer edge cases
+
+- [ ] ARM7TDMI unaligned word loads:
+  - [ ] Read the aligned word
+  - [ ] Rotate according to address bits `[1:0]`
+
+- [ ] Unaligned word stores:
+  - [ ] Apply ARM7TDMI/GBA alignment behavior
+
+- [ ] Odd-address halfword and signed-load behavior:
+  - [ ] LDRH
+  - [ ] STRH
+  - [ ] LDRSH
+
+- [ ] Single-transfer writeback edge cases:
+  - [ ] `Rn == Rd` during load with writeback
+  - [ ] Base register and offset register overlap
+  - [ ] PC used as base, source or destination
+  - [ ] Unsupported/unpredictable combinations have an explicit policy
+
+#### Block-transfer completion
+
+- [ ] Complete all four LDM/STM addressing modes:
+  - [ ] IA — Increment After
+  - [ ] IB — Increment Before
+  - [ ] DA — Decrement After
+  - [ ] DB — Decrement Before
+
+- [ ] LDM/STM register-list edge cases:
+  - [ ] Noncontiguous register lists
+  - [ ] Empty register list ARM7TDMI behavior
+  - [ ] Base register included in the register list
+  - [ ] Writeback with base register in the list
+  - [ ] PC included in the register list
+
+- [ ] Implement the LDM/STM S bit:
+  - [ ] Transfer User-mode registers from a privileged mode
+  - [ ] `LDM ... {pc}^` restores CPSR from SPSR
+  - [ ] Correct banked-register selection
+  - [ ] Correct mode and ARM/Thumb state restoration
+
+#### PSR and processor-mode completion
+
+- [ ] Verify CPSR field masks:
+  - [ ] Flags field
+  - [ ] Status field
+  - [ ] Extension field
+  - [ ] Control field
+  - [ ] Reserved bits remain preserved
+
+- [ ] Verify privilege restrictions:
+  - [ ] User mode may change NZCV only
+  - [ ] User/System mode cannot access SPSR
+  - [ ] Correct SPSR selected for the current exception mode
+  - [ ] Invalid processor modes are rejected or handled explicitly
+
+- [ ] Complete banked-register switching:
+  - [ ] FIQ banked r8–r14
+  - [ ] IRQ banked SP/LR
+  - [ ] Supervisor banked SP/LR
+  - [ ] Abort banked SP/LR
+  - [ ] Undefined banked SP/LR
+  - [ ] User/System shared register bank
+
+#### Exceptions connected to ARM instructions
+
+- [ ] Replace the SWI logging stub with real SWI exception entry:
+  - [ ] Save CPSR into SPSR_svc
+  - [ ] Save return address into LR_svc
+  - [ ] Enter Supervisor mode
+  - [ ] Clear the T bit
+  - [ ] Set the IRQ-disable bit
+  - [ ] Preserve the FIQ-disable bit
+  - [ ] Branch to vector `0x00000008`
+  - [ ] Support returning with `MOVS pc, lr`
+
+- [ ] Undefined Instruction exception:
+  - [ ] Save CPSR into SPSR_und
+  - [ ] Save the correct return address into LR_und
+  - [ ] Enter Undefined mode
+  - [ ] Switch to ARM state
+  - [ ] Branch to vector `0x00000004`
+
+- [ ] Route unsupported encodings appropriately:
+  - [ ] Unsupported coprocessor instructions
+  - [ ] Invalid or reserved ARM encodings
+  - [ ] ARMv5 instructions not supported by ARM7TDMI
+
+#### Conditional execution
+
+- [ ] Verify all 15 usable ARM conditions across every instruction family
+- [ ] Failed conditions cause no register, memory, PSR or exception side effects
+- [ ] Failed conditions still advance execution normally
+- [ ] Treat condition `0xF` according to ARMv4T rules
+
+#### Timing and pipeline integration
+
+- [ ] Base cycle count for every ARM instruction family
+- [ ] Sequential versus nonsequential memory cycles
+- [ ] Load-use internal cycles
+- [ ] Multiply timing based on the value in Rs
+- [ ] Block-transfer timing based on register count
+- [ ] Pipeline refill after PC writes
+- [ ] Pipeline refill after exceptions
+- [ ] Correct fetch width after ARM/Thumb state changes
+
+#### ARM-state validation
+
+- [ ] Unit tests for every instruction family
+- [ ] Tests for every condition-code result
+- [ ] Tests for PC and pipeline edge cases
+- [ ] Tests for unpredictable/unsupported combinations
+- [ ] Run small assembled ARM programs end-to-end
+- [ ] Compare instruction traces against a reference emulator
 
 ### 2c. Thumb instruction set
 - [ ] Move shifted register
