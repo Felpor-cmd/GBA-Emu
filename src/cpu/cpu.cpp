@@ -76,6 +76,9 @@ void Cpu::Step() {
         return;  // Condition not met; instruction is a no-op.
     }
 
+    bool is_software_interrupt =
+        (instruction & 0x0F000000u) == 0x0F000000u;
+
     // ARM branch encoding
     // bits 27-25 must be 101
     bool is_branch = ((instruction & 0x0E000000u) == 0x0A000000u);
@@ -91,6 +94,11 @@ void Cpu::Step() {
         ((instruction & 0x0FB0FFF0u) == 0x0120F000u);
     bool is_msr_immediate =
         ((instruction & 0x0FB0F000u) == 0x0320F000u);
+
+    if (is_software_interrupt) {
+        ExecuteSoftwareInterrupt(instruction, instruction_address);
+        return;
+    }
 
     if (is_branch_exchange) {
         ExecuteBranchExchange(instruction);
