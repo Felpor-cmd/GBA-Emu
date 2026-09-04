@@ -252,7 +252,7 @@ moving to the next box.
 - [ ] Compare instruction traces against a reference emulator
 
 ### 2c. Thumb instruction set
-- [ ] Move shifted register
+- [x] Move shifted register
 - [ ] Add/subtract
 - [ ] Move/compare/add/subtract immediate
 - [ ] ALU operations
