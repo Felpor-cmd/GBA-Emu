@@ -16,6 +16,7 @@ add_executable(gba_emu
     src/cpu/cpu_memory.cpp
     src/cpu/cpu_psr.cpp
     src/cpu/cpu_swi.cpp
+    src/cpu/cpu_thumb.cpp
     src/memory/bus.cpp
 )
 
@@ -62,6 +63,7 @@ add_executable(gba_tests
     src/cpu/cpu_memory.cpp
     src/cpu/cpu_psr.cpp
     src/cpu/cpu_swi.cpp
+    src/cpu/cpu_thumb.cpp
     src/memory/bus.cpp
 )
 target_include_directories(gba_tests PRIVATE src)

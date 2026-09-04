@@ -32,6 +32,7 @@ class Cpu {
     void Step();   // Fetch-decode-execute one instruction.
 
 private:
+    void ExecuteThumbMoveShiftedRegister(u16 instruction);
     void SaveBankedRegisters(u32 mode);
     void LoadBankedRegisters(u32 mode);
     u32* CurrentSpsr();

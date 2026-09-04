@@ -62,8 +62,12 @@ void Cpu::Step() {
 
         std::printf("Enter THUMB\n");
 
-        // Thumb decoding will be implemented later.
-        (void)instruction;
+        u32 opcode = (instruction >> 11) & 0x3;
+        bool is_move_shifted_register =
+            (instruction & 0xE000u) == 0 && opcode != 0x3;
+        if (is_move_shifted_register) {
+            ExecuteThumbMoveShiftedRegister(instruction);
+        }
         return;
     }
 
