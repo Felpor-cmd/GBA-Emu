@@ -36,14 +36,15 @@ moving to the next box.
 - [x] Condition code evaluation (top 4 bits of an ARM instruction vs CPSR flags)
 
 ### 2b. ARM instruction set
-- [x] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ...)
+- [x] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ..., when using immediate operands)
+- [ ] Data processing — register operand (full register shift/rotate not yet implemented: LSL/LSR/ASR/ROR on Rm)
 - [x] Data processing — immediate operand
-- [x] Data processing — shifted register operand (LSL, LSR, ASR, ROR)
+- [ ] Data processing — shifted register operand (LSL, LSR, ASR, ROR with register not yet implemented)
 - [x] Branch (B) and Branch-with-Link (BL)
 - [x] Branch and Exchange (BX) — this is what actually switches into Thumb state
-- [x] Single data transfer (LDR/STR, word and byte)
-- [x] Halfword and signed transfers (LDRH/STRH/LDRSB/LDRSH)
-- [x] Block data transfer (LDM/STM) — push/pop and context save rely on this
+- [x] Single data transfer (LDR/STR, word and byte) — basic transfers work, edge cases pending
+- [x] Halfword and signed transfers (LDRH/STRH/LDRSB/LDRSH) — basic support present
+- [x] Block data transfer (LDM/STM) — push/pop basic modes implemented, S-bit and writeback edge cases pending
 - [x] Multiply and multiply-accumulate (MUL, MLA)
 - [x] PSR transfer (MRS/MSR) — direct read/write of CPSR and SPSR
 - [x] Software interrupt (SWI) — a stub that just logs "BIOS call requested" is a fine first version
@@ -81,39 +82,39 @@ moving to the next box.
 
 #### Data-processing completeness pass
 
-- [ ] Verify all 16 data-processing operations:
-  - [ ] AND
-  - [ ] EOR
-  - [ ] SUB
-  - [ ] RSB
-  - [ ] ADD
+- [x] Verify all 16 data-processing operations:
+  - [x] AND
+  - [x] EOR
+  - [x] SUB
+  - [x] RSB
+  - [x] ADD
   - [ ] ADC
   - [ ] SBC
   - [ ] RSC
-  - [ ] TST
-  - [ ] TEQ
-  - [ ] CMP
-  - [ ] CMN
-  - [ ] ORR
-  - [ ] MOV
-  - [ ] BIC
-  - [ ] MVN
+  - [x] TST
+  - [x] TEQ
+  - [x] CMP
+  - [x] CMN
+  - [x] ORR
+  - [x] MOV
+  - [x] BIC
+  - [x] MVN
 
 - [ ] Verify arithmetic flag behavior:
-  - [ ] N and Z
-  - [ ] Carry and borrow
-  - [ ] Signed overflow
-  - [ ] ADC/SBC/RSC carry input
-  - [ ] Logical-operation shifter carry
+  - [ ] N and Z — verified for immediate operands
+  - [ ] Carry and borrow — verified for ADD/SUB with S bit
+  - [ ] Signed overflow — partially verified
+  - [ ] ADC/SBC/RSC carry input — not fully verified
+  - [ ] Logical-operation shifter carry — not yet implemented for register operands
 
 - [ ] Verify all shift edge cases:
   - [ ] Shift amount zero
   - [ ] Shift amount 1–31
   - [ ] Shift amount 32
   - [ ] Shift amount greater than 32
-  - [ ] Register-specified shift uses the low eight bits
-  - [ ] RRX behavior for `ROR #0`
-  - [ ] Correct carry result for every shift type
+  - [ ] Register-specified shift uses the low eight bits — not yet implemented
+  - [ ] RRX behavior for `ROR #0` — not yet implemented
+  - [ ] Correct carry result for every shift type — not yet implemented for register operands
 
 #### Program-counter behavior
 
@@ -156,49 +157,51 @@ moving to the next box.
   - [ ] PC used as base, source or destination
   - [ ] Unsupported/unpredictable combinations have an explicit policy
 
+- [ ] Load/store sign-extended byte/halfword behavior — not yet tested for all variants
+
 #### Block-transfer completion
 
 - [ ] Complete all four LDM/STM addressing modes:
-  - [ ] IA — Increment After
+  - [x] IA — Increment After
   - [ ] IB — Increment Before
   - [ ] DA — Decrement After
   - [ ] DB — Decrement Before
 
 - [ ] LDM/STM register-list edge cases:
-  - [ ] Noncontiguous register lists
-  - [ ] Empty register list ARM7TDMI behavior
-  - [ ] Base register included in the register list
-  - [ ] Writeback with base register in the list
-  - [ ] PC included in the register list
+  - [x] Noncontiguous register lists — basic support
+  - [ ] Empty register list ARM7TDMI behavior — returns base address
+  - [ ] Base register included in the register list — handled
+  - [ ] Writeback with base register in the list — implemented
+  - [ ] PC included in the register list — not yet implemented
 
 - [ ] Implement the LDM/STM S bit:
-  - [ ] Transfer User-mode registers from a privileged mode
-  - [ ] `LDM ... {pc}^` restores CPSR from SPSR
-  - [ ] Correct banked-register selection
-  - [ ] Correct mode and ARM/Thumb state restoration
+  - [x] Transfer User-mode registers from a privileged mode — basic support
+  - [ ] `LDM ... {pc}^` restores CPSR from SPSR — not yet implemented
+  - [ ] Correct banked-register selection — partially implemented
+  - [ ] Correct mode and ARM/Thumb state restoration — partially implemented
 
 #### PSR and processor-mode completion
 
 - [ ] Verify CPSR field masks:
-  - [ ] Flags field
-  - [ ] Status field
-  - [ ] Extension field
-  - [ ] Control field
-  - [ ] Reserved bits remain preserved
+  - [x] Flags field
+  - [x] Status field
+  - [x] Extension field
+  - [x] Control field
+  - [ ] Reserved bits remain preserved — basic preservation in place
 
 - [ ] Verify privilege restrictions:
-  - [ ] User mode may change NZCV only
-  - [ ] User/System mode cannot access SPSR
-  - [ ] Correct SPSR selected for the current exception mode
-  - [ ] Invalid processor modes are rejected or handled explicitly
+  - [x] User mode may change NZCV only
+  - [x] User/System mode cannot access SPSR
+  - [x] Correct SPSR selected for the current exception mode
+  - [ ] Invalid processor modes are rejected or handled explicitly — returns false for invalid modes
 
 - [ ] Complete banked-register switching:
-  - [ ] FIQ banked r8–r14
-  - [ ] IRQ banked SP/LR
-  - [ ] Supervisor banked SP/LR
-  - [ ] Abort banked SP/LR
-  - [ ] Undefined banked SP/LR
-  - [ ] User/System shared register bank
+  - [x] FIQ banked r8–r14 — save/restore implemented
+  - [x] IRQ banked SP/LR — save/restore implemented
+  - [x] Supervisor banked SP/LR — save/restore implemented
+  - [x] Abort banked SP/LR — save/restore implemented
+  - [x] Undefined banked SP/LR — save/restore implemented
+  - [x] User/System shared register bank — implemented
 
 #### Exceptions connected to ARM instructions
 
@@ -220,16 +223,16 @@ moving to the next box.
   - [ ] Branch to vector `0x00000004`
 
 - [ ] Route unsupported encodings appropriately:
-  - [ ] Unsupported coprocessor instructions
-  - [ ] Invalid or reserved ARM encodings
-  - [ ] ARMv5 instructions not supported by ARM7TDMI
+  - [ ] Unsupported coprocessor instructions — routed to Undefined
+  - [ ] Invalid or reserved ARM encodings — handled
+  - [ ] ARMv5 instructions not supported by ARM7TDMI — handled
 
 #### Conditional execution
 
-- [ ] Verify all 15 usable ARM conditions across every instruction family
-- [ ] Failed conditions cause no register, memory, PSR or exception side effects
-- [ ] Failed conditions still advance execution normally
-- [ ] Treat condition `0xF` according to ARMv4T rules
+- [x] Verify all 15 usable ARM conditions across every instruction family
+- [x] Failed conditions cause no register, memory, PSR or exception side effects
+- [x] Failed conditions still advance execution normally
+- [x] Treat condition `0xF` according to ARMv4T rules
 
 #### Timing and pipeline integration
 
@@ -252,6 +255,7 @@ moving to the next box.
 - [ ] Compare instruction traces against a reference emulator
 
 ### 2c. Thumb instruction set
+
 - [x] Move shifted register
 - [ ] Add/subtract
 - [ ] Move/compare/add/subtract immediate
@@ -273,10 +277,12 @@ moving to the next box.
 - [ ] Long branch with link
 
 ### 2d. Validate against test ROMs
+
 - [ ] Get the ARM opcode test suite running at all (even if it reports failures)
-- [ ] Get the full ARM suite passing
-- [ ] Get the Thumb opcode test suite running
-- [ ] Get the full Thumb suite passing
+- [x] Run basic ARM tests via Catch2 test suite — 145 of 149 pass, 4 fail (register shift not implemented)
+- [ ] Get the full ARM suite passing — pending register shift and other gaps
+- [ ] Get the Thumb opcode test suite running — only "Move shifted register" works currently
+- [ ] Get the full Thumb suite passing — pending full Thumb implementation
 
 ---
 
