@@ -22,6 +22,7 @@ class Cpu {
     void ExecuteBranchExchange(u32 instruction);
     void ExecuteSoftwareInterrupt(u32 instruction, u32 instruction_address);
     void ExecuteMultiply(u32 instruction);
+    void ExecuteLongMultiply(u32 instruction);
     void ExecuteMrs(u32 instruction);
     void ExecuteMsr(u32 instruction, bool immediate);
     void ExecuteDataProcessing(u32 instruction);

@@ -93,6 +93,16 @@ void Cpu::Step() {
     // MUL and MLA are also encoded in the ARM data-processing space.
     bool is_multiply = ((instruction & 0x0FC000F0u) == 0x00000090u);
 
+    // Long multiply (UMULL, UMLAL, SMULL, SMLAL)
+    // bit 22 = 1 (long multiply), bits 7-4 = 0x9
+    // UMULL:  0x00400090 (bit 22=1, accumulate=0, signed=0)
+    // UMLAL:  0x00600090 (bit 22=1, accumulate=1, signed=0)
+    // SMULL:  0x00C00090 (bit 22=1, accumulate=0, signed=1)
+    // SMLAL:  0x00E00090 (bit 22=1, accumulate=1, signed=1)
+    bool is_long_multiply = ((instruction & 0x0FC000F0u) >= 0x00400090u &&
+                              (instruction & 0x0FC000F0u) <= 0x00E00090u &&
+                              (instruction & 0x00400000u) != 0);
+
     bool is_mrs = ((instruction & 0x0FBF0FFFu) == 0x010F0000u);
     bool is_msr_register =
         ((instruction & 0x0FB0FFF0u) == 0x0120F000u);
@@ -111,6 +121,11 @@ void Cpu::Step() {
 
     if (is_multiply) {
         ExecuteMultiply(instruction);
+        return;
+    }
+
+    if (is_long_multiply) {
+        ExecuteLongMultiply(instruction);
         return;
     }
 

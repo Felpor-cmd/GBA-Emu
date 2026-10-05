@@ -37,9 +37,9 @@ moving to the next box.
 
 ### 2b. ARM instruction set
 - [x] Data processing — register operand (MOV, ADD, SUB, CMP, AND, ORR, ..., when using immediate operands)
-- [ ] Data processing — register operand (full register shift/rotate not yet implemented: LSL/LSR/ASR/ROR on Rm)
+- [x] Data processing — register operand (full register shift/rotate: LSL/LSR/ASR/ROR on Rm)
 - [x] Data processing — immediate operand
-- [ ] Data processing — shifted register operand (LSL, LSR, ASR, ROR with register not yet implemented)
+- [x] Data processing — shifted register operand (LSL, LSR, ASR, ROR with register)
 - [x] Branch (B) and Branch-with-Link (BL)
 - [x] Branch and Exchange (BX) — this is what actually switches into Thumb state
 - [x] Single data transfer (LDR/STR, word and byte) — basic transfers work, edge cases pending
@@ -51,13 +51,13 @@ moving to the next box.
 
 #### Remaining ARMv4T instructions
 
-- [ ] Long multiply:
-  - [ ] UMULL — unsigned 32 × 32 → 64-bit result
-  - [ ] UMLAL — unsigned multiply and 64-bit accumulate
-  - [ ] SMULL — signed 32 × 32 → 64-bit result
-  - [ ] SMLAL — signed multiply and 64-bit accumulate
-  - [ ] N/Z flag behavior when the S bit is set
-  - [ ] ARM7TDMI operand restrictions
+- [x] Long multiply:
+  - [x] UMULL — unsigned 32 × 32 → 64-bit result
+  - [x] UMLAL — unsigned multiply and 64-bit accumulate
+  - [x] SMULL — signed 32 × 32 → 64-bit result
+  - [x] SMLAL — signed multiply and 64-bit accumulate
+  - [x] N/Z flag behavior when the S bit is set
+  - [x] ARM7TDMI operand restrictions
 
 - [ ] Single data swap:
   - [ ] SWP — atomic word swap
@@ -105,16 +105,16 @@ moving to the next box.
   - [ ] Carry and borrow — verified for ADD/SUB with S bit
   - [ ] Signed overflow — partially verified
   - [ ] ADC/SBC/RSC carry input — not fully verified
-  - [ ] Logical-operation shifter carry — not yet implemented for register operands
+  - [x] Logical-operation shifter carry — implemented for register operands
 
-- [ ] Verify all shift edge cases:
-  - [ ] Shift amount zero
-  - [ ] Shift amount 1–31
-  - [ ] Shift amount 32
-  - [ ] Shift amount greater than 32
-  - [ ] Register-specified shift uses the low eight bits — not yet implemented
-  - [ ] RRX behavior for `ROR #0` — not yet implemented
-  - [ ] Correct carry result for every shift type — not yet implemented for register operands
+- [x] Verify all shift edge cases:
+  - [x] Shift amount zero
+  - [x] Shift amount 1–31
+  - [x] Shift amount 32
+  - [x] Shift amount greater than 32
+  - [x] Register-specified shift uses the low eight bits
+  - [x] RRX behavior for `ROR #0`
+  - [x] Correct carry result for every shift type
 
 #### Program-counter behavior
 
