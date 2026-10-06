@@ -30,6 +30,7 @@ class Cpu {
     void ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address);
     void ExecuteSingleDataSwap(u32 instruction);
     void ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address);
+    void EnterUndefinedInstructionException(u32 instruction_address);
     void Reset();  // Set up post-BIOS register/mode state.
     void Step();   // Fetch-decode-execute one instruction.
 

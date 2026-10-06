@@ -17,6 +17,7 @@ add_executable(gba_emu
     src/cpu/cpu_psr.cpp
     src/cpu/cpu_swi.cpp
     src/cpu/cpu_thumb.cpp
+    src/cpu/cpu_exception.cpp
     src/memory/bus.cpp
 )
 
@@ -59,6 +60,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_thumb_shift.cpp
     test/cpu/cpu_test_single_data_swap.cpp
     test/cpu/cpu_test_user_mode_transfer.cpp
+    test/cpu/cpu_test_coprocessor.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp
@@ -66,6 +68,7 @@ add_executable(gba_tests
     src/cpu/cpu_psr.cpp
     src/cpu/cpu_swi.cpp
     src/cpu/cpu_thumb.cpp
+    src/cpu/cpu_exception.cpp
     src/memory/bus.cpp
 )
 target_include_directories(gba_tests PRIVATE src)

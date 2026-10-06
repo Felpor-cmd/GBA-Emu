@@ -80,6 +80,20 @@ void Cpu::Step() {
         return;  // Condition not met; instruction is a no-op.
     }
 
+    // Coprocessor instructions (MRC, MCR, LDC, STC, CDP)
+    // All route to Undefined Instruction exception on GBA (no coprocessor)
+    bool is_coprocessor_reg_transfer =
+        ((instruction & 0x0F000010u) == 0x0E000010u);  // MRC/MCR: bits 27-24=1110, bit 4=1
+    bool is_coprocessor_data_transfer =
+        ((instruction & 0x0E000000u) == 0x0C000000u);  // LDC/STC: bits 27-25=110
+    bool is_coprocessor_data_op =
+        ((instruction & 0x0F000010u) == 0x0E000000u);  // CDP: bits 27-24=1110, bit 4=0
+
+    if (is_coprocessor_reg_transfer || is_coprocessor_data_transfer || is_coprocessor_data_op) {
+        EnterUndefinedInstructionException(instruction_address);
+        return;
+    }
+
     bool is_software_interrupt =
         (instruction & 0x0F000000u) == 0x0F000000u;
 

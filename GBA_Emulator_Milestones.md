@@ -72,13 +72,13 @@ moving to the next box.
   - [x] STRBT
   - [x] Treat privilege distinction appropriately on the GBA, which has no MMU
 
-- [ ] Coprocessor instruction decoding:
-  - [ ] CDP
-  - [ ] LDC
-  - [ ] STC
-  - [ ] MCR
-  - [ ] MRC
-  - [ ] Route them to Undefined Instruction because the GBA has no usable coprocessor
+- [x] Coprocessor instruction decoding:
+  - [x] CDP
+  - [x] LDC
+  - [x] STC
+  - [x] MCR
+  - [x] MRC
+  - [x] Route them to Undefined Instruction because the GBA has no usable coprocessor
 
 #### Data-processing completeness pass
 
