@@ -64,10 +64,16 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
     u32 effective_address = pre_index ? base + adjusted_offset : base;
 
     if (load) {
-        u32 loaded_value = byte_transfer ? bus_.Read8(effective_address)
-                                          : bus_.Read32(effective_address);
+        u32 loaded_value;
+        if (byte_transfer) {
+            loaded_value = bus_.Read8(effective_address);
+        } else {
+            u32 aligned_addr = effective_address & ~3u;
+            u32 word = bus_.Read32(aligned_addr);
+            unsigned rotate = (effective_address & 3) * 8;
+            loaded_value = (word >> rotate) | (word << (32 - rotate));
+        }
         if (rd == 15) {
-            // PC write: align to word boundary (bits 1:0 = 00)
             regs_[15] = loaded_value & ~3u;
         } else {
             regs_[rd] = loaded_value;
@@ -75,11 +81,17 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
     } else if (byte_transfer) {
         bus_.Write8(effective_address, static_cast<u8>(regs_[rd]));
     } else {
-        bus_.Write32(effective_address, regs_[rd]);
+        u32 aligned_addr = effective_address & ~3u;
+        bus_.Write32(aligned_addr, regs_[rd]);
     }
 
-    if (rn != 15 && (!pre_index || writeback)) {
-        regs_[rn] = base + adjusted_offset;
+    // Handle writeback: if Rn==Rd during load with writeback, loaded value takes precedence
+    // For post-indexed addressing, writeback always occurs (W bit is ignored)
+    bool effective_writeback = writeback || !pre_index;
+    if (rn != 15 && effective_writeback) {
+        if (!(load && effective_writeback && rn == rd)) {
+            regs_[rn] = base + adjusted_offset;
+        }
     }
 }
 
@@ -111,19 +123,24 @@ void Cpu::ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address) 
     u32 adjusted_offset = add_offset ? offset : 0 - offset;
     u32 effective_address = pre_index ? base + adjusted_offset : base;
 
+    // For halfword transfers, align to halfword boundary on GBA (ARM7TDMI behavior)
+    u32 aligned_halfword_addr = effective_address & ~1u;
+
     if (!load) {
-        bus_.Write16(effective_address, static_cast<u16>(regs_[rd]));
+        bus_.Write16(aligned_halfword_addr, static_cast<u16>(regs_[rd]));
     } else if (!signed_transfer) {
-        regs_[rd] = bus_.Read16(effective_address);
+        regs_[rd] = bus_.Read16(aligned_halfword_addr);
     } else if (halfword) {
-        u32 value = bus_.Read16(effective_address);
+        u32 value = bus_.Read16(aligned_halfword_addr);
         regs_[rd] = (value & 0x8000u) ? value | 0xFFFF0000u : value;
     } else {
-        u32 value = bus_.Read8(effective_address);
+        u32 value = bus_.Read8(effective_address);  // LDRSB uses byte address
         regs_[rd] = (value & 0x80u) ? value | 0xFFFFFF00u : value;
     }
 
-    if (rn != 15 && (!pre_index || writeback)) {
+    // For post-indexed addressing, writeback always occurs (W bit is ignored)
+    bool effective_writeback = writeback || !pre_index;
+    if (rn != 15 && effective_writeback) {
         regs_[rn] = base + adjusted_offset;
     }
 }
@@ -164,15 +181,24 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
         }
 
         if (load) {
-            u32 loaded_value = bus_.Read32(address);
+            u32 loaded_value;
+            if ((address & 3) == 0) {
+                loaded_value = bus_.Read32(address);
+            } else {
+                u32 aligned_addr = address & ~3u;
+                u32 word = bus_.Read32(aligned_addr);
+                unsigned rotate = (address & 3) * 8;
+                loaded_value = (word >> rotate) | (word << (32 - rotate));
+            }
             if (reg == 15) {
-                // PC write: align to word boundary (bits 1:0 = 00)
                 regs_[15] = loaded_value & ~3u;
             } else {
                 regs_[reg] = loaded_value;
             }
         } else {
-            bus_.Write32(address, regs_[reg]);
+            // For unaligned word stores in LDM/STM, write to aligned address
+            u32 aligned_addr = address & ~3u;
+            bus_.Write32(aligned_addr, regs_[reg]);
         }
         address += 4;
     }
@@ -186,7 +212,9 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
         }
     }
 
-    if (writeback && rn != 15) {
+    // For post-indexed addressing, writeback always occurs (W bit is ignored)
+    bool effective_writeback = writeback || !pre_index;
+    if (effective_writeback && rn != 15) {
         regs_[rn] = add_offset
             ? base + register_count * 4
             : base - register_count * 4;

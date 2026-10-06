@@ -62,6 +62,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_user_mode_transfer.cpp
     test/cpu/cpu_test_coprocessor.cpp
     test/cpu/cpu_test_pc_behavior.cpp
+    test/cpu/cpu_test_memory_edge_cases.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp

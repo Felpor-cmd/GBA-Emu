@@ -139,25 +139,25 @@ moving to the next box.
 
 #### Memory-transfer edge cases
 
-- [ ] ARM7TDMI unaligned word loads:
-  - [ ] Read the aligned word
-  - [ ] Rotate according to address bits `[1:0]`
+- [x] ARM7TDMI unaligned word loads:
+  - [x] Read the aligned word
+  - [x] Rotate according to address bits `[1:0]`
 
-- [ ] Unaligned word stores:
-  - [ ] Apply ARM7TDMI/GBA alignment behavior
+- [x] Unaligned word stores:
+  - [x] Apply ARM7TDMI/GBA alignment behavior
 
-- [ ] Odd-address halfword and signed-load behavior:
-  - [ ] LDRH
-  - [ ] STRH
-  - [ ] LDRSH
+- [x] Odd-address halfword and signed-load behavior:
+  - [x] LDRH
+  - [x] STRH
+  - [x] LDRSH
 
-- [ ] Single-transfer writeback edge cases:
-  - [ ] `Rn == Rd` during load with writeback
-  - [ ] Base register and offset register overlap
-  - [ ] PC used as base, source or destination
-  - [ ] Unsupported/unpredictable combinations have an explicit policy
+- [x] Single-transfer writeback edge cases:
+  - [x] `Rn == Rd` during load with writeback
+  - [x] Base register and offset register overlap
+  - [x] PC used as base, source or destination
+  - [x] Unsupported/unpredictable combinations have an explicit policy
 
-- [ ] Load/store sign-extended byte/halfword behavior — not yet tested for all variants
+- [x] Load/store sign-extended byte/halfword behavior — tested for all variants
 
 #### Block-transfer completion
 
