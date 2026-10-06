@@ -84,4 +84,10 @@ inline std::vector<u8> AsRom(u32 instr) {
             static_cast<u8>(instr >> 16), static_cast<u8>(instr >> 24)};
 }
 
+inline u32 EncodeSingleDataSwap(u32 cond, bool byte, u32 rn, u32 rd, u32 rm) {
+    return (cond << 28) | (0b00010 << 23) |
+           (byte ? 1u : 0u) << 22 |
+           (rn << 16) | (rd << 12) | (0b00001001 << 4) | (rm & 0xF);
+}
+
 }  // namespace cpu_test

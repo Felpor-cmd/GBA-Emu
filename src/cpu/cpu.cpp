@@ -149,6 +149,14 @@ void Cpu::Step() {
         return;
     }
 
+    bool is_single_data_swap =
+        (instruction & 0x0FB00FF0u) == 0x01000090u;
+
+    if (is_single_data_swap) {
+        ExecuteSingleDataSwap(instruction);
+        return;
+    }
+
     bool is_halfword_transfer =
         (instruction & 0x0E000000u) == 0 &&
         (instruction & 0x00000090u) == 0x00000090u &&

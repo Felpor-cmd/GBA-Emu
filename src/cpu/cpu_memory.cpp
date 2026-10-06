@@ -1,5 +1,7 @@
 #include "cpu.hpp"
 
+#include <cstdio>
+
 #include "cpu_detail.hpp"
 
 namespace {
@@ -168,5 +170,35 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
         regs_[rn] = add_offset
             ? base + register_count * 4
             : base - register_count * 4;
+    }
+}
+
+void Cpu::ExecuteSingleDataSwap(u32 instruction) {
+    u32 cond = instruction >> 28;
+    if (!CheckCondition(cond, cpsr_)) {
+        return;
+    }
+
+    bool byte_transfer = (instruction >> 22) & 1;
+    u32 rn = (instruction >> 16) & 0xF;
+    u32 rd = (instruction >> 12) & 0xF;
+    u32 rm = instruction & 0xF;
+
+    if (rn == 15 || rd == 15 || rm == 15) {
+        std::fprintf(stderr, "Warning: SWP/SWPB with R15 (PC) is unpredictable\n");
+        return;
+    }
+
+    u32 base = regs_[rn];
+    u32 rm_value = regs_[rm];
+
+    if (byte_transfer) {
+        u32 loaded_byte = bus_.Read8(base);
+        bus_.Write8(base, static_cast<u8>(rm_value));
+        regs_[rd] = loaded_byte;
+    } else {
+        u32 loaded_word = bus_.Read32(base);
+        bus_.Write32(base, rm_value);
+        regs_[rd] = loaded_word;
     }
 }

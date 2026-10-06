@@ -59,11 +59,11 @@ moving to the next box.
   - [x] N/Z flag behavior when the S bit is set
   - [x] ARM7TDMI operand restrictions
 
-- [ ] Single data swap:
-  - [ ] SWP — atomic word swap
-  - [ ] SWPB — atomic byte swap
-  - [ ] Byte-load zero extension
-  - [ ] Register restriction and overlap behavior
+- [x] Single data swap:
+  - [x] SWP — atomic word swap
+  - [x] SWPB — atomic byte swap
+  - [x] Byte-load zero extension
+  - [x] Register restriction and overlap behavior
 
 - [ ] User-mode single-transfer variants:
   - [ ] LDRT
