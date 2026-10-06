@@ -115,7 +115,8 @@ void Cpu::Step() {
     // SMLAL:  0x00E00090 (bit 22=1, accumulate=1, signed=1)
     bool is_long_multiply = ((instruction & 0x0FC000F0u) >= 0x00400090u &&
                               (instruction & 0x0FC000F0u) <= 0x00E00090u &&
-                              (instruction & 0x00400000u) != 0);
+                              (instruction & 0x00400000u) != 0 &&
+                              ((instruction >> 4) & 0xF) == 0x9);
 
     bool is_mrs = ((instruction & 0x0FBF0FFFu) == 0x010F0000u);
     bool is_msr_register =

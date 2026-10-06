@@ -88,9 +88,9 @@ moving to the next box.
   - [x] SUB
   - [x] RSB
   - [x] ADD
-  - [ ] ADC
-  - [ ] SBC
-  - [ ] RSC
+  - [x] ADC
+  - [x] SBC
+  - [x] RSC
   - [x] TST
   - [x] TEQ
   - [x] CMP
@@ -101,10 +101,10 @@ moving to the next box.
   - [x] MVN
 
 - [ ] Verify arithmetic flag behavior:
-  - [ ] N and Z — verified for immediate operands
-  - [ ] Carry and borrow — verified for ADD/SUB with S bit
-  - [ ] Signed overflow — partially verified
-  - [ ] ADC/SBC/RSC carry input — not fully verified
+  - [x] N and Z — verified for immediate operands
+  - [x] Carry and borrow — verified for ADD/SUB with S bit
+  - [x] Signed overflow — partially verified
+  - [x] ADC/SBC/RSC carry input — not fully verified
   - [x] Logical-operation shifter carry — implemented for register operands
 
 - [x] Verify all shift edge cases:

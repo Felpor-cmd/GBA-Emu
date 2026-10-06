@@ -147,4 +147,11 @@ inline u32 EncodeCDP(u32 cond, u32 coproc, u32 opcode1, u32 cd, u32 cn, u32 cm, 
            (cd << 12) | (coproc << 8) | (opcode2 << 5) | (0u << 4) | cm;
 }
 
+inline u32 EncodeDataProcessingImmediate(u32 cond, u32 opcode, bool s, u32 rn, u32 rd,
+                                         u32 imm8, u32 rotate) {
+    return (cond << 28) | (0b00 << 26) | (1u << 25) | (opcode << 21) |
+           ((s ? 1u : 0u) << 20) | (rn << 16) | (rd << 12) |
+           (rotate << 8) | imm8;
+}
+
 }  // namespace cpu_test
