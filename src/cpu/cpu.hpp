@@ -16,6 +16,7 @@ class Cpu {
     void SetRegister(int index, u32 value) { regs_[static_cast<size_t>(index)] = value; }
     u32 GetCpsr() const { return cpsr_; }
     void SetCpsr(u32 value) { cpsr_ = value; }
+    void SetSpsr(u32 value) { *CurrentSpsr() = value; }
     
     explicit Cpu(Bus& bus);
 
@@ -26,7 +27,7 @@ class Cpu {
     void ExecuteLongMultiply(u32 instruction);
     void ExecuteMrs(u32 instruction);
     void ExecuteMsr(u32 instruction, bool immediate);
-    void ExecuteDataProcessing(u32 instruction);
+    void ExecuteDataProcessing(u32 instruction, u32 instruction_address);
     void ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address);
     void ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address);
     void ExecuteSingleDataSwap(u32 instruction);
@@ -41,6 +42,7 @@ private:
     void LoadBankedRegisters(u32 mode);
     u32* CurrentSpsr();
     bool WritePsr(bool write_spsr, u32 value, u32 write_mask);
+    u32 GetRegisterWithPC(int index, u32 instruction_address) const;
 
     std::array<u32, 16> regs_{};  // r0-r15, where r15 is the program counter.
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).

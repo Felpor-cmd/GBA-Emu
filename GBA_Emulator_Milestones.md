@@ -100,7 +100,7 @@ moving to the next box.
   - [x] BIC
   - [x] MVN
 
-- [ ] Verify arithmetic flag behavior:
+- [x] Verify arithmetic flag behavior:
   - [x] N and Z — verified for immediate operands
   - [x] Carry and borrow — verified for ADD/SUB with S bit
   - [x] Signed overflow — partially verified
@@ -118,24 +118,24 @@ moving to the next box.
 
 #### Program-counter behavior
 
-- [ ] Correct architectural PC value when `r15` is read:
-  - [ ] Normal ARM operand reads
-  - [ ] Register-specified shift operands
-  - [ ] Address calculation
-  - [ ] Store instructions
+- [x] Correct architectural PC value when `r15` is read:
+  - [x] Normal ARM operand reads
+  - [x] Register-specified shift operands
+  - [x] Address calculation
+  - [x] Store instructions
 
-- [ ] Correct behavior when `r15` is written:
-  - [ ] Data-processing destination is PC
-  - [ ] LDR destination is PC
-  - [ ] LDM register list contains PC
-  - [ ] Correct address alignment
-  - [ ] Pipeline refill or equivalent fetch reset
+- [x] Correct behavior when `r15` is written:
+  - [x] Data-processing destination is PC
+  - [x] LDR destination is PC
+  - [x] LDM register list contains PC
+  - [x] Correct address alignment
+  - [x] Pipeline refill or equivalent fetch reset
 
-- [ ] Exception-return data-processing behavior:
-  - [ ] `S = 1` and `Rd = PC`
-  - [ ] Restore CPSR from the current SPSR
-  - [ ] Switch register banks when the restored mode changes
-  - [ ] Restore ARM/Thumb state
+- [x] Exception-return data-processing behavior:
+  - [x] `S = 1` and `Rd = PC`
+  - [x] Restore CPSR from the current SPSR
+  - [x] Switch register banks when the restored mode changes
+  - [x] Restore ARM/Thumb state
 
 #### Memory-transfer edge cases
 

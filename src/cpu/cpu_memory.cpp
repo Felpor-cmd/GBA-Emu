@@ -46,12 +46,12 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
     u32 rn = (instruction >> 16) & 0xF;
     u32 rd = (instruction >> 12) & 0xF;
 
-    u32 base = rn == 15 ? instruction_address + 8 : regs_[rn];
+    u32 base = GetRegisterWithPC(rn, instruction_address);
     u32 offset = 0;
 
     if (register_offset) {
         u32 rm = instruction & 0xF;
-        u32 offset_value = rm == 15 ? instruction_address + 8 : regs_[rm];
+        u32 offset_value = GetRegisterWithPC(rm, instruction_address);
         unsigned shift_amount = (instruction >> 7) & 0x1F;
         unsigned shift_type = (instruction >> 5) & 0x3;
         offset = ShiftRegisterOffset(offset_value, shift_type, shift_amount,
@@ -64,8 +64,14 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
     u32 effective_address = pre_index ? base + adjusted_offset : base;
 
     if (load) {
-        regs_[rd] = byte_transfer ? bus_.Read8(effective_address)
-                                   : bus_.Read32(effective_address);
+        u32 loaded_value = byte_transfer ? bus_.Read8(effective_address)
+                                          : bus_.Read32(effective_address);
+        if (rd == 15) {
+            // PC write: align to word boundary (bits 1:0 = 00)
+            regs_[15] = loaded_value & ~3u;
+        } else {
+            regs_[rd] = loaded_value;
+        }
     } else if (byte_transfer) {
         bus_.Write8(effective_address, static_cast<u8>(regs_[rd]));
     } else {
@@ -93,13 +99,13 @@ void Cpu::ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address) 
         return;
     }
 
-    u32 base = rn == 15 ? instruction_address + 8 : regs_[rn];
+    u32 base = GetRegisterWithPC(rn, instruction_address);
     u32 offset = 0;
     if (immediate_offset) {
         offset = (((instruction >> 8) & 0xF) << 4) | (instruction & 0xF);
     } else {
         u32 rm = instruction & 0xF;
-        offset = rm == 15 ? instruction_address + 8 : regs_[rm];
+        offset = GetRegisterWithPC(rm, instruction_address);
     }
 
     u32 adjusted_offset = add_offset ? offset : 0 - offset;
@@ -131,8 +137,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
     u32 rn = (instruction >> 16) & 0xF;
     u32 register_list = instruction & 0xFFFF;
 
-    // SPSR restoration for LDM with the S bit is not implemented yet.
-    if (set_status || register_list == 0) {
+    if (register_list == 0) {
         return;
     }
 
@@ -143,7 +148,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
         }
     }
 
-    u32 base = rn == 15 ? instruction_address + 8 : regs_[rn];
+    u32 base = GetRegisterWithPC(rn, instruction_address);
     u32 address = 0;
     if (add_offset) {
         address = pre_index ? base + 4 : base;
@@ -159,11 +164,26 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
         }
 
         if (load) {
-            regs_[reg] = bus_.Read32(address);
+            u32 loaded_value = bus_.Read32(address);
+            if (reg == 15) {
+                // PC write: align to word boundary (bits 1:0 = 00)
+                regs_[15] = loaded_value & ~3u;
+            } else {
+                regs_[reg] = loaded_value;
+            }
         } else {
             bus_.Write32(address, regs_[reg]);
         }
         address += 4;
+    }
+
+    // Exception return: if S bit is set and PC was in register list, restore CPSR from SPSR
+    if (load && set_status && (register_list & (1u << 15))) {
+        u32* spsr = CurrentSpsr();
+        if (spsr != nullptr) {
+            u32 spsr_value = *spsr;
+            WritePsr(false, spsr_value, 0xFFFFFFFFu);
+        }
     }
 
     if (writeback && rn != 15) {

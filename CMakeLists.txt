@@ -61,6 +61,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_single_data_swap.cpp
     test/cpu/cpu_test_user_mode_transfer.cpp
     test/cpu/cpu_test_coprocessor.cpp
+    test/cpu/cpu_test_pc_behavior.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp

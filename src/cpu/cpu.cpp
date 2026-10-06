@@ -32,6 +32,13 @@ bool Cpu::CheckCondition(u32 cond, u32 cpsr) {
     }
 }
 
+u32 Cpu::GetRegisterWithPC(int index, u32 instruction_address) const {
+    if (index == 15) {
+        return instruction_address + 8;
+    }
+    return regs_[static_cast<size_t>(index)];
+}
+
 void Cpu::Reset() {
     regs_.fill(0);
     shared_r8_r12_.fill(0);
@@ -182,7 +189,7 @@ void Cpu::Step() {
         return;
     }
 
-    bool is_block_data_transfer = ((instruction >> 25) & 0x7) == 0b100;
+    bool is_block_data_transfer = ((instruction >> 26) & 0b11) == 0b10;
 
     if (is_block_data_transfer) {
         ExecuteBlockDataTransfer(instruction, instruction_address);
@@ -192,7 +199,7 @@ void Cpu::Step() {
     u32 category = (instruction >> 26) & 0b11;
 
     if (category == 0b00) {
-        ExecuteDataProcessing(instruction);
+        ExecuteDataProcessing(instruction, instruction_address);
     } else if (category == 0b01) {
         ExecuteSingleDataTransfer(instruction, instruction_address);
     }

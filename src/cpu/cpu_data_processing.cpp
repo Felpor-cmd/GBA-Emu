@@ -83,14 +83,14 @@ ShiftResult ShiftWithCarry(u32 value, u32 shift_type, u32 amount, bool carry_in)
 
 }  // namespace
 
-void Cpu::ExecuteDataProcessing(u32 instruction) {
+void Cpu::ExecuteDataProcessing(u32 instruction, u32 instruction_address) {
     u32 opcode = (instruction >> 21) & 0xF;
     bool set_flags = (instruction >> 20) & 1;
     u32 rn = (instruction >> 16) & 0xF;
     u32 rd = (instruction >> 12) & 0xF;
     bool immediate_operand = (instruction >> 25) & 1;
 
-    u32 op1 = regs_[rn];
+    u32 op1 = GetRegisterWithPC(rn, instruction_address);
     bool c_in = (cpsr_ >> 29) & 1;
 
     u32 op2 = 0;
@@ -115,14 +115,14 @@ void Cpu::ExecuteDataProcessing(u32 instruction) {
         if (register_specified_shift) {
             // Shift amount from bottom 8 bits of Rs register
             u32 rs = (instruction >> 8) & 0xF;
-            u32 shift_amount = regs_[rs] & 0xFF;
-            auto shifted = ShiftWithCarry(regs_[rm], shift_type, shift_amount, c_in);
+            u32 shift_amount = GetRegisterWithPC(rs, instruction_address) & 0xFF;
+            auto shifted = ShiftWithCarry(GetRegisterWithPC(rm, instruction_address), shift_type, shift_amount, c_in);
             op2 = shifted.value;
             shifter_carry_out = shifted.carry;
         } else {
             // Shift amount from immediate (bits 11-7)
             u32 shift_amount = (instruction >> 7) & 0x1F;
-            auto shifted = ShiftWithCarry(regs_[rm], shift_type, shift_amount, c_in);
+            auto shifted = ShiftWithCarry(GetRegisterWithPC(rm, instruction_address), shift_type, shift_amount, c_in);
             op2 = shifted.value;
             shifter_carry_out = shifted.carry;
         }
@@ -153,16 +153,31 @@ void Cpu::ExecuteDataProcessing(u32 instruction) {
     }
 
     if (write_result) {
-        regs_[rd] = result;
+        if (rd == 15) {
+            // PC write: align to word boundary (bits 1:0 = 00)
+            regs_[15] = result & ~3u;
+        } else {
+            regs_[rd] = result;
+        }
     }
 
     if (set_flags) {
-        u32 n = (result >> 31) & 1;
-        u32 z = (result == 0) ? 1u : 0u;
-        u32 c = carry_out ? 1u : 0u;
-        u32 v = overflow_out ? 1u : 0u;
-        WritePsr(false, (n << 31) | (z << 30) | (c << 29) | (v << 28),
-                 0xF0000000u);
+        if (rd == 15) {
+            // Exception return: restore CPSR from SPSR of current mode
+            u32* spsr = CurrentSpsr();
+            if (spsr != nullptr) {
+                // Preserve T bit from SPSR (ARM/Thumb state)
+                u32 spsr_value = *spsr;
+                WritePsr(false, spsr_value, 0xFFFFFFFFu);
+            }
+        } else {
+            u32 n = (result >> 31) & 1;
+            u32 z = (result == 0) ? 1u : 0u;
+            u32 c = carry_out ? 1u : 0u;
+            u32 v = overflow_out ? 1u : 0u;
+            WritePsr(false, (n << 31) | (z << 30) | (c << 29) | (v << 28),
+                     0xF0000000u);
+        }
     }
 }
 
