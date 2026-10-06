@@ -90,4 +90,30 @@ inline u32 EncodeSingleDataSwap(u32 cond, bool byte, u32 rn, u32 rd, u32 rm) {
            (rn << 16) | (rd << 12) | (0b00001001 << 4) | (rm & 0xF);
 }
 
+inline u32 EncodeUserModeTransfer(u32 cond, bool load, bool byte, u32 rn, u32 rd,
+                                   s32 offset) {
+    bool add_offset = offset >= 0;
+    u32 magnitude = static_cast<u32>(add_offset ? offset : -offset);
+    return (cond << 28) | (0b01 << 26) |
+           (0u << 24) |                // P=0: post-indexed
+           (add_offset ? 1u : 0u) << 23 |  // U bit
+           (byte ? 1u : 0u) << 22 |    // B bit
+           (1u << 21) |                // T=1: force user-mode access (only in post-indexed)
+           (load ? 1u : 0u) << 20 |    // L bit
+           (rn << 16) | (rd << 12) | (magnitude & 0xFFF);
+}
+
+inline u32 EncodeUserModeRegisterTransfer(u32 cond, bool load, bool byte, u32 rn, u32 rd,
+                                           u32 rm, u32 shift_amount = 0,
+                                           u32 shift_type = 0) {
+    return (cond << 28) | (0b01 << 26) | (1u << 25) |
+           (0u << 24) |                // P=0: post-indexed
+           (1u << 23) |                // U=1 (add offset)
+           (byte ? 1u : 0u) << 22 |    // B bit
+           (1u << 21) |                // T=1: force user-mode access
+           (load ? 1u : 0u) << 20 |    // L bit
+           (rn << 16) | (rd << 12) | (shift_amount << 7) |
+           (shift_type << 5) | (rm & 0xF);
+}
+
 }  // namespace cpu_test

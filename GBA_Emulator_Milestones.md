@@ -65,12 +65,12 @@ moving to the next box.
   - [x] Byte-load zero extension
   - [x] Register restriction and overlap behavior
 
-- [ ] User-mode single-transfer variants:
-  - [ ] LDRT
-  - [ ] STRT
-  - [ ] LDRBT
-  - [ ] STRBT
-  - [ ] Treat privilege distinction appropriately on the GBA, which has no MMU
+- [x] User-mode single-transfer variants:
+  - [x] LDRT
+  - [x] STRT
+  - [x] LDRBT
+  - [x] STRBT
+  - [x] Treat privilege distinction appropriately on the GBA, which has no MMU
 
 - [ ] Coprocessor instruction decoding:
   - [ ] CDP

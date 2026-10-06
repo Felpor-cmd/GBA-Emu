@@ -58,6 +58,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_swi.cpp
     test/cpu/cpu_test_thumb_shift.cpp
     test/cpu/cpu_test_single_data_swap.cpp
+    test/cpu/cpu_test_user_mode_transfer.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp
