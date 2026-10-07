@@ -154,7 +154,35 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
     u32 rn = (instruction >> 16) & 0xF;
     u32 register_list = instruction & 0xFFFF;
 
+    // ARM7TDMI: Rn cannot be R15 (PC) for block data transfer
+    if (rn == 15) {
+        return;
+    }
+
+    u32 base = GetRegisterWithPC(rn, instruction_address);
+
+    // Empty register list handling (ARMv4-v5): load/store R15, adjust base by +/- 0x40
     if (register_list == 0) {
+        // For empty register list, the access address follows the same pre/post indexing rules
+        u32 access_address;
+        if (pre_index) {
+            // Pre-indexed: first access at base +/- 4
+            access_address = add_offset ? base + 4 : base - 4;
+        } else {
+            // Post-indexed: first access at base
+            access_address = base;
+        }
+
+        if (load) {
+            regs_[15] = bus_.Read32(access_address);
+        } else {
+            bus_.Write32(access_address, regs_[15]);
+        }
+        // Adjust base by +/- 0x40 (64 bytes = 16 registers * 4 bytes)
+        u32 new_base = add_offset ? base + 0x40 : base - 0x40;
+        if (rn != 15) {
+            regs_[rn] = new_base;
+        }
         return;
     }
 
@@ -164,15 +192,13 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
             ++register_count;
         }
     }
-
-    u32 base = GetRegisterWithPC(rn, instruction_address);
     u32 address = 0;
-    if (add_offset) {
-        address = pre_index ? base + 4 : base;
+    if (pre_index) {
+        // Pre-indexed: apply offset before first access
+        address = add_offset ? base + 4 : base - 4;
     } else {
-        address = pre_index
-            ? base - register_count * 4
-            : base - (register_count - 1) * 4;
+        // Post-indexed: first access at base address
+        address = base;
     }
 
     for (u32 reg = 0; reg < 16; ++reg) {
@@ -200,7 +226,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
             u32 aligned_addr = address & ~3u;
             bus_.Write32(aligned_addr, regs_[reg]);
         }
-        address += 4;
+        address += add_offset ? 4 : -4;
     }
 
     // Exception return: if S bit is set and PC was in register list, restore CPSR from SPSR
@@ -215,9 +241,36 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
     // For post-indexed addressing, writeback always occurs (W bit is ignored)
     bool effective_writeback = writeback || !pre_index;
     if (effective_writeback && rn != 15) {
-        regs_[rn] = add_offset
-            ? base + register_count * 4
-            : base - register_count * 4;
+        // Check if base register (Rn) is in the register list
+        bool rn_in_list = (register_list & (1u << rn)) != 0;
+        bool rn_is_first = rn_in_list;
+        if (rn_in_list) {
+            // Check if Rn is the first (lowest-numbered) register in the list
+            for (u32 r = 0; r < rn; ++r) {
+                if (register_list & (1u << r)) {
+                    rn_is_first = false;
+                    break;
+                }
+            }
+        }
+
+        if (!load) {
+            // STM: ARMv4 behavior - if Rn in list, write OLD base if first, else NEW base
+            if (rn_in_list && rn_is_first) {
+                regs_[rn] = base;  // OLD base
+            } else {
+                regs_[rn] = add_offset
+                    ? base + register_count * 4
+                    : base - register_count * 4;  // NEW base
+            }
+        } else {
+            // LDM: ARMv4 behavior - no writeback if Rn in list
+            if (!rn_in_list) {
+                regs_[rn] = add_offset
+                    ? base + register_count * 4
+                    : base - register_count * 4;
+            }
+        }
     }
 }
 

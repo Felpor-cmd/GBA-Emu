@@ -161,17 +161,17 @@ moving to the next box.
 
 #### Block-transfer completion
 
-- [ ] Complete all four LDM/STM addressing modes:
+- [x] Complete all four LDM/STM addressing modes:
   - [x] IA — Increment After
-  - [ ] IB — Increment Before
-  - [ ] DA — Decrement After
-  - [ ] DB — Decrement Before
+  - [x] IB — Increment Before
+  - [x] DA — Decrement After
+  - [x] DB — Decrement Before
 
-- [ ] LDM/STM register-list edge cases:
+- [x] LDM/STM register-list edge cases:
   - [x] Noncontiguous register lists — basic support
-  - [ ] Empty register list ARM7TDMI behavior — returns base address
-  - [ ] Base register included in the register list — handled
-  - [ ] Writeback with base register in the list — implemented
+  - [x] Empty register list ARM7TDMI behavior — loads/stores R15, adjusts base by ±0x40
+  - [x] Base register included in the register list — handled (ARMv4 writeback rules)
+  - [x] Writeback with base register in the list — implemented (ARMv4 rules)
   - [ ] PC included in the register list — not yet implemented
 
 - [ ] Implement the LDM/STM S bit:

@@ -147,12 +147,16 @@ TEST_CASE("ARM single data transfer reads PC as offset register") {
     REQUIRE(cpu.GetRegister(0) == 0x12345678);
 }
 
-TEST_CASE("ARM block data transfer reads PC as base register") {
+TEST_CASE("ARM block data transfer reads base register") {
+    // Using R0 as base register for LDM
     std::vector<u8> rom(0x1000, 0);
-    cpu_test::Put32(rom, 0, cpu_test::EncodeBlockDataTransfer(0xE, true, 15, 1, true, true));
-    cpu_test::Put32(rom, 0xC, 0x12345678);
+    cpu_test::Put32(rom, 0, cpu_test::EncodeBlockDataTransfer(0xE, true, 0, 1, true, true));
+    // LDMIA with pre-index: first load at base+4, so put data at offset 0x10
+    cpu_test::Put32(rom, 0x10, 0x12345678);
     Bus bus(std::move(rom));
     Cpu cpu(bus);
+    cpu.SetRegister(0, 0x0800000C);  // base address
+
     cpu.Step();
 
     REQUIRE(cpu.GetRegister(0) == 0x12345678);
