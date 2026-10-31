@@ -35,7 +35,8 @@ class Cpu {
     void EnterUndefinedInstructionException(u32 instruction_address);
     void EnterSoftwareInterruptException(u32 instruction_address);
     void Reset();  // Set up post-BIOS register/mode state.
-    void Step();   // Fetch-decode-execute one instruction.
+    u32 Step();    // Fetch-decode-execute one instruction; return elapsed clocks.
+    u64 GetCycles() const { return cycles_; }
 
 private:
     void ExecuteThumbMoveShiftedRegister(u16 instruction);
@@ -47,6 +48,16 @@ private:
     u32 GetRegisterWithPC(int index, u32 instruction_address) const;
     u32 GetUserRegister(u32 index) const;
     void SetUserRegister(u32 index, u32 value);
+    u8 ReadData8(u32 address);
+    u16 ReadData16(u32 address);
+    u32 ReadData32(u32 address);
+    void WriteData8(u32 address, u8 value);
+    void WriteData16(u32 address, u16 value);
+    void WriteData32(u32 address, u32 value);
+    void ChargeData(u32 address, unsigned width);
+    void ChargeInternal(u32 cycles);
+    u32 ChargeFetch(u32 address, unsigned width, bool sequential);
+    void ChargeRefill(u32 target, unsigned width);
 
     std::array<u32, 16> regs_{};  // r0-r15, where r15 is the program counter.
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).
@@ -66,5 +77,13 @@ private:
     u32 spsr_und_ = 0;
 
     Bus& bus_;
+    u64 cycles_ = 0;
+    u32 step_cycles_ = 0;
+    u32 prefetch_clocks_ = 0;
+    u32 prefetch_halfwords_ = 0;
+    bool next_fetch_sequential_ = false;
+    bool data_sequential_ = false;
+    bool step_from_rom_ = false;
+    u16 last_waitcnt_ = 0;
 
 };

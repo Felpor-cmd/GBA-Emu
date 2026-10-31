@@ -88,10 +88,10 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
     if (load) {
         u32 loaded_value;
         if (byte_transfer) {
-            loaded_value = bus_.Read8(effective_address);
+            loaded_value = ReadData8(effective_address);
         } else {
             u32 aligned_addr = effective_address & ~3u;
-            u32 word = bus_.Read32(aligned_addr);
+            u32 word = ReadData32(aligned_addr);
             unsigned rotate = (effective_address & 3) * 8;
             loaded_value = (word >> rotate) | (word << (32 - rotate));
         }
@@ -101,10 +101,10 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
             regs_[rd] = loaded_value;
         }
     } else if (byte_transfer) {
-        bus_.Write8(effective_address, static_cast<u8>(regs_[rd]));
+        WriteData8(effective_address, static_cast<u8>(regs_[rd]));
     } else {
         u32 aligned_addr = effective_address & ~3u;
-        bus_.Write32(aligned_addr, regs_[rd]);
+        WriteData32(aligned_addr, regs_[rd]);
     }
 
     // Handle writeback: if Rn==Rd during load with writeback, loaded value takes precedence
@@ -149,14 +149,14 @@ void Cpu::ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address) 
     u32 aligned_halfword_addr = effective_address & ~1u;
 
     if (!load) {
-        bus_.Write16(aligned_halfword_addr, static_cast<u16>(regs_[rd]));
+        WriteData16(aligned_halfword_addr, static_cast<u16>(regs_[rd]));
     } else if (!signed_transfer) {
-        regs_[rd] = bus_.Read16(aligned_halfword_addr);
+        regs_[rd] = ReadData16(aligned_halfword_addr);
     } else if (halfword) {
-        u32 value = bus_.Read16(aligned_halfword_addr);
+        u32 value = ReadData16(aligned_halfword_addr);
         regs_[rd] = (value & 0x8000u) ? value | 0xFFFF0000u : value;
     } else {
-        u32 value = bus_.Read8(effective_address);  // LDRSB uses byte address
+        u32 value = ReadData8(effective_address);  // LDRSB uses byte address
         regs_[rd] = (value & 0x80u) ? value | 0xFFFFFF00u : value;
     }
 
@@ -191,7 +191,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
             : base - 0x40u + (pre_index ? 0u : 4u);
 
         if (load) {
-            u32 loaded_pc = bus_.Read32(access_address);
+            u32 loaded_pc = ReadData32(access_address);
             if (writeback) {
                 regs_[rn] = add_offset ? base + 0x40 : base - 0x40;
             }
@@ -203,7 +203,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
             }
             regs_[15] = loaded_pc & ((cpsr_ & kThumbFlag) ? ~1u : ~3u);
         } else {
-            bus_.Write32(access_address & ~3u, instruction_address + 12);
+            WriteData32(access_address & ~3u, instruction_address + 12);
             if (writeback) {
                 regs_[rn] = add_offset ? base + 0x40 : base - 0x40;
             }
@@ -237,10 +237,10 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
         if (load) {
             u32 loaded_value;
             if ((address & 3) == 0) {
-                loaded_value = bus_.Read32(address);
+                loaded_value = ReadData32(address);
             } else {
                 u32 aligned_addr = address & ~3u;
-                u32 word = bus_.Read32(aligned_addr);
+                u32 word = ReadData32(aligned_addr);
                 unsigned rotate = (address & 3) * 8;
                 loaded_value = (word >> rotate) | (word << (32 - rotate));
             }
@@ -260,7 +260,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
             if (writeback && !user_bank_transfer && reg == rn && !rn_is_first) {
                 value = new_base;
             }
-            bus_.Write32(aligned_addr, value);
+            WriteData32(aligned_addr, value);
         }
         address += 4;
     }
@@ -309,12 +309,14 @@ void Cpu::ExecuteSingleDataSwap(u32 instruction) {
     u32 rm_value = regs_[rm];
 
     if (byte_transfer) {
-        u32 loaded_byte = bus_.Read8(base);
-        bus_.Write8(base, static_cast<u8>(rm_value));
+        u32 loaded_byte = ReadData8(base);
+        data_sequential_ = false;
+        WriteData8(base, static_cast<u8>(rm_value));
         regs_[rd] = loaded_byte;
     } else {
-        u32 loaded_word = bus_.Read32(base);
-        bus_.Write32(base, rm_value);
+        u32 loaded_word = ReadData32(base);
+        data_sequential_ = false;
+        WriteData32(base, rm_value);
         regs_[rd] = loaded_word;
     }
 }

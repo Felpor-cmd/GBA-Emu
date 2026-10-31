@@ -30,6 +30,12 @@ public:
     void Write16(u32 address, u16 value);
     void Write32(u32 address, u32 value);
 
+    // Number of 16.78 MHz bus clocks for one CPU access. `sequential` is
+    // supplied by the CPU's instruction/data access schedule.
+    u32 AccessCycles(u32 address, unsigned width, bool sequential) const;
+    bool PrefetchEnabled() const { return (waitcnt_ & (1u << 14)) != 0; }
+    u16 GetWaitcnt() const { return waitcnt_; }
+
 private:
     std::array<u8, kBiosSize>    bios_{};
     std::array<u8, kEwramSize>   ewram_{};
@@ -40,4 +46,5 @@ private:
     std::array<u8, kIoSize>      io_{};
     std::array<u8, kSramSize>    sram_{};
     std::vector<u8>              rom_;  
+    u16 waitcnt_ = 0;
 };

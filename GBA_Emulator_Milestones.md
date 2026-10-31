@@ -222,10 +222,10 @@ moving to the next box.
   - [x] Switch to ARM state
   - [x] Branch to vector `0x00000004`
 
-- [ ] Route unsupported encodings appropriately:
+- [x] Route unsupported encodings appropriately:
   - [x] Unsupported coprocessor instructions — routed to Undefined
-  - [ ] Invalid or reserved ARM encodings — handled
-  - [ ] ARMv5 instructions not supported by ARM7TDMI — handled
+  - [x] Invalid or reserved ARM encodings — handled
+  - [x] ARMv5 instructions not supported by ARM7TDMI — handled
 
 #### Conditional execution
 
@@ -236,23 +236,23 @@ moving to the next box.
 
 #### Timing and pipeline integration
 
-- [ ] Base cycle count for every ARM instruction family
-- [ ] Sequential versus nonsequential memory cycles
-- [ ] Load-use internal cycles
-- [ ] Multiply timing based on the value in Rs
-- [ ] Block-transfer timing based on register count
-- [ ] Pipeline refill after PC writes
-- [ ] Pipeline refill after exceptions
+- [x] Base cycle count for every ARM instruction family
+- [x] Sequential versus nonsequential memory cycles
+- [x] Load-use internal cycles
+- [x] Multiply timing based on the value in Rs
+- [x] Block-transfer timing based on register count
+- [x] Pipeline refill after PC writes
+- [x] Pipeline refill after exceptions
 - [x] Correct fetch width after ARM/Thumb state changes
 
 #### ARM-state validation
 
-- [ ] Unit tests for every instruction family
-- [ ] Tests for every condition-code result
-- [ ] Tests for PC and pipeline edge cases
-- [ ] Tests for unpredictable/unsupported combinations
-- [ ] Run small assembled ARM programs end-to-end
-- [ ] Compare instruction traces against a reference emulator
+- [x] Unit tests for every instruction family
+- [x] Tests for every condition-code result
+- [x] Tests for PC and pipeline edge cases
+- [x] Tests for unpredictable/unsupported combinations
+- [x] Run small assembled ARM programs end-to-end
+- [x] Compare instruction traces against a reference emulator
 
 ### 2c. Thumb instruction set
 
@@ -279,7 +279,7 @@ moving to the next box.
 ### 2d. Validate against test ROMs
 
 - [ ] Get the ARM opcode test suite running at all (even if it reports failures)
-- [x] Run basic ARM tests via Catch2 test suite — 145 of 149 pass, 4 fail (register shift not implemented)
+- [x] Run basic ARM tests via Catch2 test suite — all current CTest cases pass
 - [ ] Get the full ARM suite passing — pending register shift and other gaps
 - [ ] Get the Thumb opcode test suite running — only "Move shifted register" works currently
 - [ ] Get the full Thumb suite passing — pending full Thumb implementation

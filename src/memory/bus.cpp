@@ -15,7 +15,10 @@ u8 Bus::Read8(u32 address) const {
     switch (address >> 24){
         case 0x00: return bios_[address & (kBiosSize - 1)];
 
-        case 0x04: return io_[address & (kIoSize -1)];
+        case 0x04:
+            if (address == 0x04000204) return static_cast<u8>(waitcnt_);
+            if (address == 0x04000205) return static_cast<u8>(waitcnt_ >> 8);
+            return io_[address & (kIoSize -1)];
 
         case 0x02: return ewram_[address & (kEwramSize - 1)];
         case 0x03: return iwram_[address & (kIwramSize - 1)];
@@ -54,7 +57,15 @@ void Bus::Write8(u32 address, u8 value) {
     switch (address >> 24){
         case 0x00: break; // BIOS is read-only, ignore writes
 
-        case 0x04: io_[address & (kIoSize - 1)] = value; break;
+        case 0x04:
+            if (address == 0x04000204) {
+                waitcnt_ = (waitcnt_ & 0xFF00u) | value;
+            } else if (address == 0x04000205) {
+                waitcnt_ = (waitcnt_ & 0x00FFu) | (static_cast<u16>(value & 0x7Fu) << 8);
+            } else {
+                io_[address & (kIoSize - 1)] = value;
+            }
+            break;
 
         case 0x02: ewram_[address & (kEwramSize - 1)] = value; break;
         case 0x03: iwram_[address & (kIwramSize - 1)] = value; break;
@@ -81,4 +92,30 @@ void Bus::Write16(u32 address, u16 value) {
 void Bus::Write32(u32 address, u32 value) {
     Write16(address, static_cast<u16>(value & 0xFFFF));
     Write16(address + 2, static_cast<u16>((value >> 16) & 0xFFFF));
+}
+
+u32 Bus::AccessCycles(u32 address, unsigned width, bool sequential) const {
+    const u32 region = address >> 24;
+    const u32 units = width == 4 ? 2u : 1u;
+    if (region == 0x02) return 3u * units;
+    if (region >= 0x04 && region <= 0x07) return units;
+    if (region >= 0x08 && region <= 0x0D) {
+        const unsigned bank = (region - 0x08) / 2;
+        const unsigned shift = 2 + bank * 3;
+        constexpr u32 first[4] = {4, 3, 2, 8};
+        const u32 nonsequential = first[(waitcnt_ >> shift) & 3u];
+        const bool fast = (waitcnt_ >> (shift + 2)) & 1u;
+        const u32 sequential_wait = bank == 0 ? (fast ? 1u : 2u)
+                                  : bank == 1 ? (fast ? 1u : 4u)
+                                              : (fast ? 1u : 8u);
+        // Game Pak has a 16-bit data bus. A word uses a second S access.
+        const bool boundary = (address & 0x1FFFFu) == 0;
+        return 1u + ((sequential && !boundary) ? sequential_wait : nonsequential)
+               + (units == 2 ? 1u + sequential_wait : 0u);
+    }
+    if (region == 0x0E) {
+        constexpr u32 wait[4] = {4, 3, 2, 8};
+        return (1u + wait[waitcnt_ & 3u]) * width;
+    }
+    return 1;
 }
