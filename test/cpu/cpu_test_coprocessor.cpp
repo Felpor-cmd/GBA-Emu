@@ -88,6 +88,22 @@ TEST_CASE("Undefined Instruction exception saves return address to LR_und") {
     REQUIRE(cpu.GetRegister(15) == 0x00000004);
 }
 
+TEST_CASE("Undefined Instruction exception switches banks and preserves System registers") {
+    Bus bus(cpu_test::AsRom(cpu_test::EncodeMRC(0xE, 15, 0, 0, 0, 0, 0)));
+    Cpu cpu(bus);
+    cpu.SetRegister(13, 0x03007F00);
+    cpu.SetRegister(14, 0x02001234);
+
+    cpu.Step();
+
+    REQUIRE((cpu.GetCpsr() & 0x1Fu) == 0x1Bu);
+    REQUIRE(cpu.GetRegister(13) == 0);
+    REQUIRE(cpu.GetRegister(14) == 0x08000004);
+    REQUIRE(cpu.SetCpsr(0x1Fu));
+    REQUIRE(cpu.GetRegister(13) == 0x03007F00);
+    REQUIRE(cpu.GetRegister(14) == 0x02001234);
+}
+
 TEST_CASE("Undefined Instruction exception disables IRQ (I bit set)") {
     Bus bus(cpu_test::AsRom(cpu_test::EncodeMRC(0xE, 15, 0, 0, 0, 0, 0)));
     Cpu cpu(bus);

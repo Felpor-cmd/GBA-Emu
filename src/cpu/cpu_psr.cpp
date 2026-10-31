@@ -131,6 +131,14 @@ bool Cpu::WritePsr(bool write_spsr, u32 value, u32 write_mask) {
     return true;
 }
 
+bool Cpu::SetCpsr(u32 value) {
+    return WritePsr(false, value, 0xFFFFFFFFu);
+}
+
+bool Cpu::SetSpsr(u32 value) {
+    return WritePsr(true, value, 0xFFFFFFFFu);
+}
+
 void Cpu::ExecuteMrs(u32 instruction) {
     bool read_spsr = (instruction >> 22) & 1;
     u32 rd = (instruction >> 12) & 0xF;

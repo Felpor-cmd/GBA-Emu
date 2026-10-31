@@ -182,20 +182,20 @@ moving to the next box.
 
 #### PSR and processor-mode completion
 
-- [ ] Verify CPSR field masks:
+- [x] Verify CPSR field masks:
   - [x] Flags field
   - [x] Status field
   - [x] Extension field
   - [x] Control field
-  - [ ] Reserved bits remain preserved — basic preservation in place
+  - [x] Reserved bits remain preserved
 
-- [ ] Verify privilege restrictions:
+- [x] Verify privilege restrictions:
   - [x] User mode may change NZCV only
   - [x] User/System mode cannot access SPSR
   - [x] Correct SPSR selected for the current exception mode
-  - [ ] Invalid processor modes are rejected or handled explicitly — returns false for invalid modes
+  - [x] Invalid processor modes are rejected without changing PSR or register banks
 
-- [ ] Complete banked-register switching:
+- [x] Complete banked-register switching:
   - [x] FIQ banked r8–r14 — save/restore implemented
   - [x] IRQ banked SP/LR — save/restore implemented
   - [x] Supervisor banked SP/LR — save/restore implemented

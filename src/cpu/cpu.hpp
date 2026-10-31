@@ -15,8 +15,8 @@ class Cpu {
     u32 GetRegister(int index) const { return regs_[static_cast<size_t>(index)]; }
     void SetRegister(int index, u32 value) { regs_[static_cast<size_t>(index)] = value; }
     u32 GetCpsr() const { return cpsr_; }
-    void SetCpsr(u32 value) { cpsr_ = value; }
-    void SetSpsr(u32 value) { *CurrentSpsr() = value; }
+    bool SetCpsr(u32 value);
+    bool SetSpsr(u32 value);
     
     explicit Cpu(Bus& bus);
 

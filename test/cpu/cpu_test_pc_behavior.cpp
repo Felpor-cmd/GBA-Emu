@@ -59,8 +59,8 @@ TEST_CASE("ARM data processing with S bit and Rd=PC restores CPSR from SPSR") {
     u32 instr = cpu_test::Encode(0xE, 0xD, true, 0, 15, 14);
     Bus bus(cpu_test::AsRom(instr));
     Cpu cpu(bus);
-    cpu.SetRegister(14, 0x02000000);
     cpu.SetCpsr(0x1B);  // Undefined mode
+    cpu.SetRegister(14, 0x02000000);
     cpu.SetSpsr(0x1F);  // System mode, ARM state
     cpu.Step();
 
@@ -113,9 +113,9 @@ TEST_CASE("ARM LDM with PC in register list aligns PC") {
 TEST_CASE("ARM LDM with S bit and PC restores CPSR from SPSR") {
     Bus bus(cpu_test::AsRom(cpu_test::EncodeBlockDataTransfer(0xE, true, 13, (1u << 15), true, true, false, true)));
     Cpu cpu(bus);
+    cpu.SetCpsr(0x1B);  // Undefined mode
     cpu.SetRegister(13, 0x03007F00);
     bus.Write32(0x03007F04, 0x02000000);
-    cpu.SetCpsr(0x1B);  // Undefined mode
     cpu.SetSpsr(0x1F | 0x20);  // System mode, Thumb state
     cpu.Step();
 
@@ -177,9 +177,9 @@ TEST_CASE("ARM data processing with S=1 and Rd=PC restores CPSR and mode") {
     u32 instr = cpu_test::Encode(0xE, 0xD, true, 15, 15, 14);
     Bus bus(cpu_test::AsRom(instr));
     Cpu cpu(bus);
+    cpu.SetCpsr(0x13 | 0x80);  // SVC mode, IRQ disabled
     cpu.SetRegister(14, 0x02000000);
     cpu.SetRegister(15, 0x08000000);
-    cpu.SetCpsr(0x13 | 0x80);  // SVC mode, IRQ disabled
     cpu.SetSpsr(0x10);  // User mode
     cpu.Step();
 
