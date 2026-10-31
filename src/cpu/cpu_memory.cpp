@@ -36,6 +36,28 @@ u32 ShiftRegisterOffset(u32 value, unsigned shift_type, unsigned amount,
 
 }  // namespace
 
+u32 Cpu::GetUserRegister(u32 index) const {
+    u32 mode = cpsr_ & 0x1Fu;
+    if (index >= 8 && index <= 12 && mode == 0x11) {
+        return shared_r8_r12_[index - 8];
+    }
+    if (index >= 13 && index <= 14 && mode != 0x10 && mode != 0x1F) {
+        return user_system_r13_r14_[index - 13];
+    }
+    return regs_[index];
+}
+
+void Cpu::SetUserRegister(u32 index, u32 value) {
+    u32 mode = cpsr_ & 0x1Fu;
+    if (index >= 8 && index <= 12 && mode == 0x11) {
+        shared_r8_r12_[index - 8] = value;
+    } else if (index >= 13 && index <= 14 && mode != 0x10 && mode != 0x1F) {
+        user_system_r13_r14_[index - 13] = value;
+    } else {
+        regs_[index] = value;
+    }
+}
+
 void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
     bool register_offset = (instruction >> 25) & 1;
     bool pre_index = (instruction >> 24) & 1;
@@ -153,6 +175,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
     bool load = (instruction >> 20) & 1;
     u32 rn = (instruction >> 16) & 0xF;
     u32 register_list = instruction & 0xFFFF;
+    bool user_bank_transfer = set_status && !(load && (register_list & (1u << 15)));
 
     // ARM7TDMI: Rn cannot be R15 (PC) for block data transfer
     if (rn == 15) {
@@ -163,25 +186,27 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
 
     // Empty register list handling (ARMv4-v5): load/store R15, adjust base by +/- 0x40
     if (register_list == 0) {
-        // For empty register list, the access address follows the same pre/post indexing rules
-        u32 access_address;
-        if (pre_index) {
-            // Pre-indexed: first access at base +/- 4
-            access_address = add_offset ? base + 4 : base - 4;
-        } else {
-            // Post-indexed: first access at base
-            access_address = base;
-        }
+        u32 access_address = add_offset
+            ? base + (pre_index ? 4u : 0u)
+            : base - 0x40u + (pre_index ? 0u : 4u);
 
         if (load) {
-            regs_[15] = bus_.Read32(access_address);
+            u32 loaded_pc = bus_.Read32(access_address);
+            if (writeback) {
+                regs_[rn] = add_offset ? base + 0x40 : base - 0x40;
+            }
+            if (set_status) {
+                u32* spsr = CurrentSpsr();
+                if (spsr != nullptr) {
+                    WritePsr(false, *spsr, 0xFFFFFFFFu);
+                }
+            }
+            regs_[15] = loaded_pc & ((cpsr_ & kThumbFlag) ? ~1u : ~3u);
         } else {
-            bus_.Write32(access_address, regs_[15]);
-        }
-        // Adjust base by +/- 0x40 (64 bytes = 16 registers * 4 bytes)
-        u32 new_base = add_offset ? base + 0x40 : base - 0x40;
-        if (rn != 15) {
-            regs_[rn] = new_base;
+            bus_.Write32(access_address & ~3u, instruction_address + 12);
+            if (writeback) {
+                regs_[rn] = add_offset ? base + 0x40 : base - 0x40;
+            }
         }
         return;
     }
@@ -192,15 +217,18 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
             ++register_count;
         }
     }
-    u32 address = 0;
-    if (pre_index) {
-        // Pre-indexed: apply offset before first access
-        address = add_offset ? base + 4 : base - 4;
-    } else {
-        // Post-indexed: first access at base address
-        address = base;
-    }
+    // Registers always transfer in ascending number and address order.
+    u32 address = add_offset
+        ? base + (pre_index ? 4u : 0u)
+        : base - register_count * 4 + (pre_index ? 0u : 4u);
 
+    u32 loaded_pc = 0;
+    bool pc_loaded = false;
+    bool rn_in_list = (register_list & (1u << rn)) != 0;
+    bool rn_is_first = rn_in_list &&
+        (register_list & ((1u << rn) - 1u)) == 0;
+    u32 new_base = add_offset ? base + register_count * 4
+                              : base - register_count * 4;
     for (u32 reg = 0; reg < 16; ++reg) {
         if ((register_list & (1u << reg)) == 0) {
             continue;
@@ -217,60 +245,47 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
                 loaded_value = (word >> rotate) | (word << (32 - rotate));
             }
             if (reg == 15) {
-                regs_[15] = loaded_value & ~3u;
+                loaded_pc = loaded_value;
+                pc_loaded = true;
+            } else if (user_bank_transfer) {
+                SetUserRegister(reg, loaded_value);
             } else {
                 regs_[reg] = loaded_value;
             }
         } else {
             // For unaligned word stores in LDM/STM, write to aligned address
             u32 aligned_addr = address & ~3u;
-            bus_.Write32(aligned_addr, regs_[reg]);
+            u32 value = reg == 15 ? instruction_address + 12
+                : user_bank_transfer ? GetUserRegister(reg) : regs_[reg];
+            if (writeback && !user_bank_transfer && reg == rn && !rn_is_first) {
+                value = new_base;
+            }
+            bus_.Write32(aligned_addr, value);
         }
-        address += add_offset ? 4 : -4;
+        address += 4;
     }
 
-    // Exception return: if S bit is set and PC was in register list, restore CPSR from SPSR
-    if (load && set_status && (register_list & (1u << 15))) {
-        u32* spsr = CurrentSpsr();
-        if (spsr != nullptr) {
-            u32 spsr_value = *spsr;
-            WritePsr(false, spsr_value, 0xFFFFFFFFu);
-        }
-    }
-
-    // For post-indexed addressing, writeback always occurs (W bit is ignored)
-    bool effective_writeback = writeback || !pre_index;
+    bool effective_writeback = writeback;
     if (effective_writeback && rn != 15) {
-        // Check if base register (Rn) is in the register list
-        bool rn_in_list = (register_list & (1u << rn)) != 0;
-        bool rn_is_first = rn_in_list;
-        if (rn_in_list) {
-            // Check if Rn is the first (lowest-numbered) register in the list
-            for (u32 r = 0; r < rn; ++r) {
-                if (register_list & (1u << r)) {
-                    rn_is_first = false;
-                    break;
-                }
-            }
-        }
-
         if (!load) {
-            // STM: ARMv4 behavior - if Rn in list, write OLD base if first, else NEW base
-            if (rn_in_list && rn_is_first) {
-                regs_[rn] = base;  // OLD base
-            } else {
-                regs_[rn] = add_offset
-                    ? base + register_count * 4
-                    : base - register_count * 4;  // NEW base
-            }
+            regs_[rn] = new_base;
         } else {
             // LDM: ARMv4 behavior - no writeback if Rn in list
             if (!rn_in_list) {
-                regs_[rn] = add_offset
-                    ? base + register_count * 4
-                    : base - register_count * 4;
+                regs_[rn] = new_base;
             }
         }
+    }
+
+    if (pc_loaded) {
+        // Write back in the old mode before restoring its saved status and register bank.
+        if (set_status) {
+            u32* spsr = CurrentSpsr();
+            if (spsr != nullptr) {
+                WritePsr(false, *spsr, 0xFFFFFFFFu);
+            }
+        }
+        regs_[15] = loaded_pc & ((cpsr_ & kThumbFlag) ? ~1u : ~3u);
     }
 }
 

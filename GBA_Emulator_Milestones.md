@@ -172,13 +172,13 @@ moving to the next box.
   - [x] Empty register list ARM7TDMI behavior — loads/stores R15, adjusts base by ±0x40
   - [x] Base register included in the register list — handled (ARMv4 writeback rules)
   - [x] Writeback with base register in the list — implemented (ARMv4 rules)
-  - [ ] PC included in the register list — not yet implemented
+  - [x] PC included in the register list — load/branch and STM PC+12 behavior
 
-- [ ] Implement the LDM/STM S bit:
-  - [x] Transfer User-mode registers from a privileged mode — basic support
-  - [ ] `LDM ... {pc}^` restores CPSR from SPSR — not yet implemented
-  - [ ] Correct banked-register selection — partially implemented
-  - [ ] Correct mode and ARM/Thumb state restoration — partially implemented
+- [x] Implement the LDM/STM S bit:
+  - [x] Transfer User-mode registers from a privileged mode
+  - [x] `LDM ... {pc}^` restores CPSR from SPSR
+  - [x] Correct banked-register selection
+  - [x] Correct mode and ARM/Thumb state restoration
 
 #### PSR and processor-mode completion
 

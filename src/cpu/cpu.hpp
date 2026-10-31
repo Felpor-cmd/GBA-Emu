@@ -43,6 +43,8 @@ private:
     u32* CurrentSpsr();
     bool WritePsr(bool write_spsr, u32 value, u32 write_mask);
     u32 GetRegisterWithPC(int index, u32 instruction_address) const;
+    u32 GetUserRegister(u32 index) const;
+    void SetUserRegister(u32 index, u32 value);
 
     std::array<u32, 16> regs_{};  // r0-r15, where r15 is the program counter.
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).
