@@ -42,4 +42,4 @@ jobs:
           cmake -S . -B build -G Ninja -DMGBA_ROOT="$PWD/mgba-install"
           cmake --build build --target mgba_trace_compare --parallel
       - name: Compare instruction traces
-        run: ctest --test-dir build -R '^mgba_arm_.*trace$' --output-on-failure
+        run: ctest --test-dir build -R '^mgba_(arm|thumb)_.*trace$' --output-on-failure

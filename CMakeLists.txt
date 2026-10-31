@@ -58,6 +58,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_psr_transfer.cpp
     test/cpu/cpu_test_swi.cpp
     test/cpu/cpu_test_thumb_shift.cpp
+    test/cpu/cpu_test_thumb_families.cpp
     test/cpu/cpu_test_single_data_swap.cpp
     test/cpu/cpu_test_user_mode_transfer.cpp
     test/cpu/cpu_test_coprocessor.cpp
@@ -98,4 +99,8 @@ if(DEFINED MGBA_ROOT)
         "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/sequence.gba" 9)
     add_test(NAME mgba_arm_multiply_block_trace COMMAND mgba_trace_compare
         "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/multiply_block.gba" 11)
+    add_test(NAME mgba_thumb_arithmetic_trace COMMAND mgba_trace_compare
+        "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/thumb_arithmetic.gba" 16)
+    add_test(NAME mgba_thumb_memory_trace COMMAND mgba_trace_compare
+        "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/thumb_memory.gba" 22)
 endif()

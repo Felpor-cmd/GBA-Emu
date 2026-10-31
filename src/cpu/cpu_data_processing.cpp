@@ -154,8 +154,10 @@ void Cpu::ExecuteDataProcessing(u32 instruction, u32 instruction_address) {
 
     if (write_result) {
         if (rd == 15) {
-            // PC write: align to word boundary (bits 1:0 = 00)
-            regs_[15] = result & ~3u;
+            // MOVS/ALUS PC restores SPSR and can return to a Thumb halfword.
+            u32* saved_status = set_flags ? CurrentSpsr() : nullptr;
+            const bool returns_to_thumb = saved_status && (*saved_status & kThumbFlag);
+            regs_[15] = result & (returns_to_thumb ? ~1u : ~3u);
         } else {
             regs_[rd] = result;
         }

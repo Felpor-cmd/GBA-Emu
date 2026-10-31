@@ -39,6 +39,7 @@ class Cpu {
     u64 GetCycles() const { return cycles_; }
 
 private:
+    bool ExecuteThumb(u16 instruction, u32 instruction_address);
     void ExecuteThumbMoveShiftedRegister(u16 instruction);
     void ExecuteThumbBranchExchange(u16 instruction);
     void SaveBankedRegisters(u32 mode);
@@ -84,6 +85,8 @@ private:
     bool next_fetch_sequential_ = false;
     bool data_sequential_ = false;
     bool step_from_rom_ = false;
+    bool thumb_bl_pending_ = false;
+    u32 thumb_bl_next_address_ = 0;
     u16 last_waitcnt_ = 0;
 
 };

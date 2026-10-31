@@ -103,6 +103,8 @@ void Cpu::Reset() {
     cpsr_ = 0x1F;             // System mode, ARM state, IRQ/FIQ unmasked.
     cycles_ = step_cycles_ = prefetch_clocks_ = prefetch_halfwords_ = 0;
     next_fetch_sequential_ = data_sequential_ = step_from_rom_ = false;
+    thumb_bl_pending_ = false;
+    thumb_bl_next_address_ = 0;
     last_waitcnt_ = bus_.GetWaitcnt();
 }
 
@@ -187,25 +189,14 @@ u32 Cpu::Step() {
     if (thumb_mode) {
         u16 instruction = bus_.Read16(instruction_address);
         regs_[15] = instruction_address + 2;
-
-        if ((instruction & 0xFF87u) == 0x4700u) {
-            ExecuteThumbBranchExchange(instruction);
+        if (ExecuteThumb(instruction, instruction_address))
             ChargeRefill(regs_[15], (cpsr_ & kThumbFlag) ? 2 : 4);
-            cycles_ += step_cycles_;
-            return step_cycles_;
-        }
-
-        u32 opcode = (instruction >> 11) & 0x3;
-        bool is_move_shifted_register =
-            (instruction & 0xE000u) == 0 && opcode != 0x3;
-        if (is_move_shifted_register) {
-            ExecuteThumbMoveShiftedRegister(instruction);
-        }
         cycles_ += step_cycles_;
         return step_cycles_;
     }
 
     u32 instruction = bus_.Read32(instruction_address);
+    thumb_bl_pending_ = false;
     regs_[15] = instruction_address + 4;
     u32 condition = instruction >> 28;
     if (condition != 0xFu && !CheckCondition(condition, cpsr_)) {

@@ -25,9 +25,24 @@ The checked-in `test/fixtures/arm/*.gba` files are raw synthetic ROMs. The
 Regenerate them with `scripts/regenerate_arm_fixtures.sh` after installing
 `binutils-arm-none-eabi`; CI checks that regeneration reproduces the binaries.
 
+## Thumb validation
+
+`cpu_test_thumb_families.cpp` checks every ARMv4T Thumb format through
+`Cpu::Step()`: arithmetic flags and shift boundaries, high registers and state
+exchange, aligned and unaligned transfers, stack and multiple transfers,
+branches, BL, exceptions, and instruction clocks. The assembled
+`thumb_arithmetic` and `thumb_memory` ROMs also run in the pinned mGBA trace
+job. Its PC comparison subtracts the current instruction width from mGBA's
+pipeline PC; the memory comparison includes IWRAM data and stack words.
+
+An ARM7TDMI STM with the base later in its register list stores the updated
+base, per GBATEK and NanoBoyAdvance. mGBA 0.10.5 stores the old base for this
+unpredictable operand combination, so the reference fixture uses a base-first
+overlap while the unit test covers the later-base behavior.
+
 To run the trace comparator locally, build [mGBA 0.10.5](https://github.com/mgba-emu/mgba/releases/tag/0.10.5)
 as a shared library, install it to a private prefix, then configure with
-`-DMGBA_ROOT=/path/to/prefix` and run `ctest --test-dir build -R mgba_arm_`.
+`-DMGBA_ROOT=/path/to/prefix` and run `ctest --test-dir build -R '^mgba_(arm|thumb)_'`.
 The comparator checks registers, CPSR, PC, and IWRAM after each instruction;
 it prints the first differing field. It uses mGBA's [C core API](https://github.com/mgba-emu/mgba/blob/0.10.5/include/mgba/core/core.h)
 because mGBA 0.10.5 does not offer a command-line script loader.

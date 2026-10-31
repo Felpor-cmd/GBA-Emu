@@ -15,7 +15,7 @@ void Cpu::EnterUndefinedInstructionException(u32 instruction_address) {
     spsr_und_ = cpsr;
 
     // Save return address (instruction_address + 4) to LR_und
-    und_r13_r14_[1] = instruction_address + 4;
+    und_r13_r14_[1] = instruction_address + ((cpsr & kThumbFlag) ? 2u : 4u);
 
     // Enter Undefined mode, switch to ARM state, and mask IRQs. WritePsr
     // switches the active register bank while preserving the outgoing bank.
@@ -30,7 +30,7 @@ void Cpu::EnterUndefinedInstructionException(u32 instruction_address) {
 
 void Cpu::EnterSoftwareInterruptException(u32 instruction_address) {
     spsr_svc_ = cpsr_;
-    svc_r13_r14_[1] = instruction_address + 4;
+    svc_r13_r14_[1] = instruction_address + ((cpsr_ & kThumbFlag) ? 2u : 4u);
     u32 exception_cpsr = (cpsr_ & ~(0x1Fu | kThumbFlag)) |
                          kSupervisorMode | kIRQDisableBit;
     WritePsr(false, exception_cpsr, 0xFFFFFFFFu);

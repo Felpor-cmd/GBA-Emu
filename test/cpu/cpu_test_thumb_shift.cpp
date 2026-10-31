@@ -224,7 +224,7 @@ TEST_CASE("Thumb shifts advance the PC by two bytes") {
     REQUIRE(cpu.GetRegister(15) == 0x08000002u);
 }
 
-TEST_CASE("Thumb add/subtract encoding is not consumed as a shift") {
+TEST_CASE("Thumb add/subtract updates result and arithmetic flags") {
     Bus bus(cpu_test::AsRom(0x1808u));
     Cpu cpu(bus);
     EnterThumbAtRomStart(cpu);
@@ -233,6 +233,6 @@ TEST_CASE("Thumb add/subtract encoding is not consumed as a shift") {
 
     cpu.Step();
 
-    REQUIRE(cpu.GetRegister(0) != 6u);
+    REQUIRE(cpu.GetRegister(0) == 0xDEADBEEFu + 3u);
     REQUIRE(cpu.GetRegister(15) == 0x08000002u);
 }

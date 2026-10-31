@@ -257,24 +257,24 @@ moving to the next box.
 ### 2c. Thumb instruction set
 
 - [x] Move shifted register
-- [ ] Add/subtract
-- [ ] Move/compare/add/subtract immediate
-- [ ] ALU operations
-- [ ] Hi register operations / branch exchange
-- [ ] PC-relative load
-- [ ] Load/store with register offset
-- [ ] Load/store sign-extended byte/halfword
-- [ ] Load/store with immediate offset
-- [ ] Load/store halfword
-- [ ] SP-relative load/store
-- [ ] Load address
-- [ ] Add offset to stack pointer
-- [ ] Push/pop registers
-- [ ] Multiple load/store
-- [ ] Conditional branch
-- [ ] Software interrupt
-- [ ] Unconditional branch
-- [ ] Long branch with link
+- [x] Add/subtract
+- [x] Move/compare/add/subtract immediate
+- [x] ALU operations
+- [x] Hi register operations / branch exchange
+- [x] PC-relative load
+- [x] Load/store with register offset
+- [x] Load/store sign-extended byte/halfword
+- [x] Load/store with immediate offset
+- [x] Load/store halfword
+- [x] SP-relative load/store
+- [x] Load address
+- [x] Add offset to stack pointer
+- [x] Push/pop registers
+- [x] Multiple load/store
+- [x] Conditional branch
+- [x] Software interrupt
+- [x] Unconditional branch
+- [x] Long branch with link
 
 ### 2d. Validate against test ROMs
 
@@ -387,9 +387,3 @@ correct."
 - [ ] A debugger: breakpoints, memory viewer, disassembler
 - [ ] Real BIOS emulation (replacing the current boot-skip shortcut)
 - [ ] Link cable / multiplayer emulation (even mature emulators often skip this)
-
----
-
-## Notes
-
-2b.1 One honest thing to flag and set aside for now: on real hardware, if Rn or Rm is r15 (the PC), the value read isn't quite the PC you'd expect — a pipelining quirk makes it read as current instruction address + 8. We're not modeling a pipeline, so this'll be slightly wrong if a game ever uses the PC as a math operand. It's a real gap, but a narrow one — safe to note and revisit later rather than solve today.
