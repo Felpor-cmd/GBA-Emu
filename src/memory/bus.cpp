@@ -1,6 +1,10 @@
 #include "bus.hpp"
 
-Bus::Bus(std::vector<u8> rom) : rom_(std::move(rom)) {}
+#include <algorithm>
+
+Bus::Bus(std::vector<u8> rom, std::vector<u8> bios) : rom_(std::move(rom)) {
+    std::copy_n(bios.begin(), std::min(bios.size(), bios_.size()), bios_.begin());
+}
 
 u8 Bus::Read8(u32 address) const {
     // TODO: switch on the top bits of `address` to route to BIOS, EWRAM,

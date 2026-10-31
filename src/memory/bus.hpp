@@ -20,7 +20,7 @@ constexpr u32 kIoSize      = 0x400;     // 1 KB   I/O Registers - PLACEHOLDER
 // the real address ranges is the next milestone after this compiles.
 class Bus {
 public:
-    explicit Bus(std::vector<u8> rom);
+    explicit Bus(std::vector<u8> rom, std::vector<u8> bios = {});
 
     u8  Read8(u32 address) const;
     u16 Read16(u32 address) const;

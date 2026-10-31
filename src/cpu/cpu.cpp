@@ -67,7 +67,10 @@ void Cpu::Step() {
         u16 instruction = bus_.Read16(instruction_address);
         regs_[15] = instruction_address + 2;
 
-        std::printf("Enter THUMB\n");
+        if ((instruction & 0xFF87u) == 0x4700u) {
+            ExecuteThumbBranchExchange(instruction);
+            return;
+        }
 
         u32 opcode = (instruction >> 11) & 0x3;
         bool is_move_shifted_register =
@@ -80,9 +83,11 @@ void Cpu::Step() {
 
     u32 instruction = bus_.Read32(instruction_address);
     regs_[15] = instruction_address + 4;
-    std::printf("Enter ARM\n");
-
     u32 condition = instruction >> 28;
+    if (condition == 0xFu) {
+        EnterUndefinedInstructionException(instruction_address);
+        return;
+    }
     if (!CheckCondition(condition, cpsr_)) {
         return;  // Condition not met; instruction is a no-op.
     }

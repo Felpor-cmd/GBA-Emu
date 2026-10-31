@@ -4,6 +4,8 @@
 
 constexpr u32 kUndefinedMode = 0x1B;
 constexpr u32 kUndefinedVector = 0x00000004;
+constexpr u32 kSupervisorMode = 0x13;
+constexpr u32 kSupervisorVector = 0x00000008;
 constexpr u32 kIRQDisableBit = 0x80;  // bit 7
 
 void Cpu::EnterUndefinedInstructionException(u32 instruction_address) {
@@ -24,4 +26,13 @@ void Cpu::EnterUndefinedInstructionException(u32 instruction_address) {
 
     // Branch to vector 0x00000004
     regs_[15] = kUndefinedVector;
+}
+
+void Cpu::EnterSoftwareInterruptException(u32 instruction_address) {
+    spsr_svc_ = cpsr_;
+    svc_r13_r14_[1] = instruction_address + 4;
+    u32 exception_cpsr = (cpsr_ & ~(0x1Fu | kThumbFlag)) |
+                         kSupervisorMode | kIRQDisableBit;
+    WritePsr(false, exception_cpsr, 0xFFFFFFFFu);
+    regs_[15] = kSupervisorVector;
 }

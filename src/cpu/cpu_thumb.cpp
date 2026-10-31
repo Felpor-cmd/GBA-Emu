@@ -8,6 +8,14 @@ constexpr u32 kCarryFlag = 1u << 29;
 
 }  // namespace
 
+void Cpu::ExecuteThumbBranchExchange(u16 instruction) {
+    u32 rm = (instruction >> 3) & 0xFu;
+    u32 target = rm == 15 ? regs_[15] + 2 : regs_[rm];
+    bool enter_thumb = (target & 1u) != 0;
+    WritePsr(false, enter_thumb ? kThumbFlag : 0, kThumbFlag);
+    regs_[15] = target & (enter_thumb ? ~1u : ~3u);
+}
+
 void Cpu::ExecuteThumbMoveShiftedRegister(u16 instruction) {
     u32 opcode = (instruction >> 11) & 0x3;
     u32 shift_amount = (instruction >> 6) & 0x1F;

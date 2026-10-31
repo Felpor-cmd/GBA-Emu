@@ -205,25 +205,25 @@ moving to the next box.
 
 #### Exceptions connected to ARM instructions
 
-- [ ] Replace the SWI logging stub with real SWI exception entry:
-  - [ ] Save CPSR into SPSR_svc
-  - [ ] Save return address into LR_svc
-  - [ ] Enter Supervisor mode
-  - [ ] Clear the T bit
-  - [ ] Set the IRQ-disable bit
-  - [ ] Preserve the FIQ-disable bit
-  - [ ] Branch to vector `0x00000008`
-  - [ ] Support returning with `MOVS pc, lr`
+- [x] Replace the SWI logging stub with real SWI exception entry:
+  - [x] Save CPSR into SPSR_svc
+  - [x] Save return address into LR_svc
+  - [x] Enter Supervisor mode
+  - [x] Clear the T bit
+  - [x] Set the IRQ-disable bit
+  - [x] Preserve the FIQ-disable bit
+  - [x] Branch to vector `0x00000008`
+  - [x] Support returning with `MOVS pc, lr`
 
-- [ ] Undefined Instruction exception:
-  - [ ] Save CPSR into SPSR_und
-  - [ ] Save the correct return address into LR_und
-  - [ ] Enter Undefined mode
-  - [ ] Switch to ARM state
-  - [ ] Branch to vector `0x00000004`
+- [x] Undefined Instruction exception:
+  - [x] Save CPSR into SPSR_und
+  - [x] Save the correct return address into LR_und
+  - [x] Enter Undefined mode
+  - [x] Switch to ARM state
+  - [x] Branch to vector `0x00000004`
 
 - [ ] Route unsupported encodings appropriately:
-  - [ ] Unsupported coprocessor instructions — routed to Undefined
+  - [x] Unsupported coprocessor instructions — routed to Undefined
   - [ ] Invalid or reserved ARM encodings — handled
   - [ ] ARMv5 instructions not supported by ARM7TDMI — handled
 
@@ -243,7 +243,7 @@ moving to the next box.
 - [ ] Block-transfer timing based on register count
 - [ ] Pipeline refill after PC writes
 - [ ] Pipeline refill after exceptions
-- [ ] Correct fetch width after ARM/Thumb state changes
+- [x] Correct fetch width after ARM/Thumb state changes
 
 #### ARM-state validation
 
