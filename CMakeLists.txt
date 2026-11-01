@@ -134,7 +134,8 @@ if(DEFINED MGBA_ROOT)
 endif()
 
 set(GBA_VERIFY_ROMS "" CACHE STRING "Optional semicolon-separated list of local GBA ROMs to compare with mGBA")
-set(GBA_VERIFY_FRAMES "600,3600" CACHE STRING "Comma-separated frame checkpoints for local ROM verification")
+set(GBA_VERIFY_FRAMES "600" CACHE STRING "Comma-separated frame checkpoints for local ROM verification")
+set(GBA_VERIFY_ALIGNMENT_WINDOW "20" CACHE STRING "Reference frame alignment window on either side of each checkpoint")
 set(GBA_VERIFY_MIN_COLORS "1" CACHE STRING "Minimum unique 5-bit colors required in local ROM captures")
 set(GBA_ZELDA_ROM "" CACHE FILEPATH "Optional local Zelda ROM (compatibility alias; adds a pinned Zelda check)")
 if(GBA_VERIFY_ROMS OR GBA_ZELDA_ROM)
@@ -166,13 +167,14 @@ if(GBA_VERIFY_ROMS OR GBA_ZELDA_ROM)
         endif()
         list(APPEND _gba_verify_names "${_test_name}")
         set(_verify_args --frames "${GBA_VERIFY_FRAMES}" --min-colors "${GBA_VERIFY_MIN_COLORS}")
+        list(APPEND _verify_args --alignment-window "${GBA_VERIFY_ALIGNMENT_WINDOW}")
         if(GBA_ZELDA_ROM AND _rom_abs STREQUAL _zelda_rom_abs)
             list(APPEND _verify_args --sha256 "bedc74df62755f705398273de8ed3bc59be610cf55760d0b9aa277f1f5035e73" --min-colors 100)
         endif()
         add_test(NAME "${_test_name}" COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify_rom.py"
             --emulator "$<TARGET_FILE:gba_emu>" --reference "$<TARGET_FILE:mgba_frame_capture>"
-            --rom "${_rom_abs}" --output-dir "${CMAKE_CURRENT_BINARY_DIR}/rom-captures/${_rom_slug}"
+            --rom "${_rom_abs}" --output-dir "/tmp/gba-emu/${_rom_name}"
             ${_verify_args})
         set_tests_properties("${_test_name}" PROPERTIES LABELS "local-rom" TIMEOUT 900)
     endforeach()

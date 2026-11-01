@@ -20,7 +20,9 @@ Press Escape to close the window. To see the pixel pipeline without a ROM:
 The test pattern is a solid red Mode 3 framebuffer. For an automated display
 smoke test, pass `--frames 2`. A deterministic run and frame capture needs no display:
 
-    build/gba_emu roms/Zelda.gba --headless --frames 600 --dump-frame /tmp/zelda.ppm
+mkdir -p /tmp/gba-emu/Zelda/captures
+build/gba_emu roms/Zelda.gba --headless --frames 600 \
+    --dump-frame /tmp/gba-emu/Zelda/captures/zelda-600.ppm
 
 `--trace` prints the final register state and recent instructions. Unsupported
 BIOS services produce one diagnostic and the trace, rather than entering empty
@@ -35,7 +37,7 @@ affine setup, and interrupt wait services needed by Zelda: The Minish Cap.
 Video IRQs, immediate/VBlank/HBlank DMA, alpha blending, brightness, and WIN0/1
 clipping are implemented. Timers, audio, and keypad controls remain pending.
 
-Local ROM screenshot comparisons against pinned mGBA are described in [docs/zelda-boot.md](docs/zelda-boot.md).
+Local ROM checks against pinned mGBA keep per-game logs and temporary captures in `/tmp/gba-emu/<ROM name>/`. Successful checks remove their captures and retain logs. See [docs/zelda-boot.md](docs/zelda-boot.md).
 
 ## Status
 

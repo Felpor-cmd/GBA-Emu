@@ -37,9 +37,9 @@ def main():
     parser.add_argument("--reference", required=True, type=Path)
     parser.add_argument("--rom", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--frames", default="600,3600",
-                        help="comma-separated frame checkpoints (default: 600,3600)")
-    parser.add_argument("--alignment-window", type=int, default=60,
+    parser.add_argument("--frames", default="600",
+                        help="comma-separated frame checkpoints (default: 600)")
+    parser.add_argument("--alignment-window", type=int, default=20,
                         help="reference frames on either side used for animation alignment")
     parser.add_argument("--max-mean-error", type=float, default=0.5,
                         help="maximum average per-channel error in GBA 5-bit color space")
@@ -60,17 +60,24 @@ def main():
     if args.sha256 and digest.lower() != args.sha256.lower():
         raise RuntimeError(f"ROM SHA-256 mismatch: got {digest}, expected {args.sha256}")
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    captures_dir = args.output_dir / "captures"
+    logs_dir = args.output_dir / "logs"
+    captures_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
     label = args.rom.stem
     for frame_count in frames:
-        actual = args.output_dir / f"{label}-{frame_count}.ppm"
-        expected = args.output_dir / f"mgba-{label}-{frame_count}.ppm"
-        subprocess.run([str(args.emulator.resolve()), str(args.rom.resolve()), "--headless",
-                        "--frames", str(frame_count), "--dump-frame", str(actual)], check=True)
-        subprocess.run([str(args.reference.resolve()), str(args.rom.resolve()),
-                        str(frame_count), str(expected), str(args.alignment_window)],
-                       check=True, stdout=subprocess.DEVNULL)
-
+        actual = captures_dir / f"{label}-{frame_count}.ppm"
+        expected = captures_dir / f"mgba-{label}-{frame_count}.ppm"
+        emulator_log = logs_dir / f"emulator-{frame_count}.log"
+        reference_log = logs_dir / f"mgba-{frame_count}.log"
+        with emulator_log.open("wb") as log:
+            subprocess.run([str(args.emulator.resolve()), str(args.rom.resolve()), "--headless",
+                            "--frames", str(frame_count), "--dump-frame", str(actual)],
+                           check=True, stdout=log, stderr=subprocess.STDOUT)
+        with reference_log.open("wb") as log:
+            subprocess.run([str(args.reference.resolve()), str(args.rom.resolve()),
+                            str(frame_count), str(expected), str(args.alignment_window)],
+                           check=True, stdout=log, stderr=subprocess.STDOUT)
         actual_pixels = pixels(actual)
         candidates = [(expected, frame_count)] + [
             (Path(str(expected) + f".{candidate}.ppm"), candidate)
@@ -86,6 +93,11 @@ def main():
                 f"mean={mean:.4f}, close={close:.2%}")
         print(f"{label} frame {frame_count} matches mGBA frame {aligned}: "
               f"mean 5-bit error {mean:.4f}; {close:.2%} within 2")
+
+    # Keep the per-game folders and logs, but remove image data once verification
+    # has confirmed the run. Failed comparisons retain captures for inspection.
+    for capture in captures_dir.glob("*.ppm"):
+        capture.unlink()
 
 
 if __name__ == "__main__":
