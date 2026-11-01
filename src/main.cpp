@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <vector>
 #include "emulator.hpp"
+#include "input/input_manager.hpp"
+#include "ui/input_settings_ui.hpp"
 
 namespace {
 std::vector<u8> LoadRom(const char* path) {
@@ -26,6 +28,8 @@ int main(int argc, char** argv) {
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
     SDL_Texture* texture = nullptr;
+    InputManager input;
+    InputSettingsUi settings_ui;
     int result = 0;
     try {
         if (argc < 2) throw std::runtime_error("Usage: gba_emu <rom.gba|--test-pattern> [--headless] [--frames N] [--dump-frame file.ppm]");
@@ -56,7 +60,9 @@ int main(int argc, char** argv) {
                 bus.Write16(0x06000000u + pixel * 2, 31);
         }
         if (!headless) {
-            if (SDL_Init(SDL_INIT_VIDEO) != 0) throw std::runtime_error(SDL_GetError());
+            SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
+            if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK) != 0)
+                throw std::runtime_error(SDL_GetError());
             window = SDL_CreateWindow("GBA Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                 720, 480, SDL_WINDOW_SHOWN);
             if (window) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -64,7 +70,8 @@ int main(int argc, char** argv) {
             if (renderer) texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
                 SDL_TEXTUREACCESS_STREAMING, 240, 160);
             if (!texture) throw std::runtime_error(SDL_GetError());
-            SDL_RenderSetLogicalSize(renderer, 240, 160);
+            if (!input.Initialize()) throw std::runtime_error("Could not initialize controller input");
+            if (!settings_ui.Initialize(window, renderer)) throw std::runtime_error("Could not initialize input settings UI");
         }
         constexpr double period = static_cast<double>(Ppu::kCyclesPerFrame) / 16777216.0;
         auto previous = std::chrono::steady_clock::now();
@@ -74,23 +81,40 @@ int main(int argc, char** argv) {
             if (!headless) {
                 SDL_Event event;
                 while (SDL_PollEvent(&event)) {
-                    if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) running = false;
+                    settings_ui.ProcessEvent(event);
+                    input.ProcessEvent(event);
+                    if (event.type == SDL_QUIT) running = false;
+                    if (event.type == SDL_KEYDOWN && !event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_F1)
+                        settings_ui.ToggleMenu();
+                    if (event.type == SDL_KEYDOWN && !event.key.repeat && event.key.keysym.scancode == SDL_SCANCODE_ESCAPE &&
+                        !input.IsRebinding() && !settings_ui.HasOpenPanel()) running = false;
                 }
                 if (!running) break;
                 const auto now = std::chrono::steady_clock::now();
                 accumulator = std::min(accumulator + std::chrono::duration<double>(now - previous).count(), period * 3);
                 previous = now;
-                if (accumulator < period) { SDL_Delay(1); continue; }
-                accumulator -= period;
+                const bool keyboard_focused = SDL_GetKeyboardFocus() == window && !input.IsRebinding();
+                emulator->Memory().SetKeyInput(input.PressedMask(keyboard_focused));
+                while (accumulator >= period && running) {
+                    emulator->RunFrame();
+                    accumulator -= period;
+                    if (limit && emulator->Frames() >= limit) running = false;
+                }
+                if (renderer) {
+                    SDL_UpdateTexture(texture, nullptr, emulator->Pixels().data(), 240 * sizeof(u32));
+                    SDL_RenderClear(renderer);
+                    int output_width = 0, output_height = 0;
+                    SDL_GetRendererOutputSize(renderer, &output_width, &output_height);
+                    const SDL_Rect destination{0, 0, output_width, output_height};
+                    SDL_RenderCopy(renderer, texture, nullptr, &destination);
+                    settings_ui.Render(input, window, renderer);
+                }
+                SDL_Delay(1);
             }
-            emulator->RunFrame();
-            if (!headless) {
-                SDL_UpdateTexture(texture, nullptr, emulator->Pixels().data(), 240 * sizeof(u32));
-                SDL_RenderClear(renderer);
-                SDL_RenderCopy(renderer, texture, nullptr, nullptr);
-                SDL_RenderPresent(renderer);
+            if (headless) {
+                emulator->RunFrame();
+                if (limit && emulator->Frames() >= limit) running = false;
             }
-            if (limit && emulator->Frames() >= limit) running = false;
         }
         if (!capture.empty()) emulator->DumpFrame(capture.c_str());
         if (trace) emulator->PrintTrace(std::cerr);
@@ -101,6 +125,8 @@ int main(int argc, char** argv) {
         if (emulator) emulator->PrintTrace(std::cerr);
         result = 1;
     }
+    settings_ui.Shutdown();
+    input.Shutdown();
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

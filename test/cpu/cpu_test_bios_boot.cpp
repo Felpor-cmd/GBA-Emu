@@ -107,6 +107,25 @@ TEST_CASE("BIOS division handles signed remainder and INT_MIN without overflow")
     REQUIRE(cpu.GetRegister(1) == 0);
 }
 
+TEST_CASE("BIOS Sqrt returns the integer root and resumes after SWI 08") {
+    for (bool thumb : {true, false}) {
+        Bus bus(cpu_test::AsRom(thumb ? 0xDF08u : 0xEF080000u));
+        Cpu cpu(bus, true);
+        cpu.SetCpsr(thumb ? 0x3Fu : 0x1Fu);
+        for (const auto [input, expected] : {
+                 std::pair<u32, u32>{0u, 0u}, {2u, 1u}, {15u, 3u},
+                 {16u, 4u}, {0x001E4000u, 1408u}, {0xFFFFFFFFu, 65535u}}) {
+            cpu.SetRegister(15, 0x08000000u);
+            cpu.SetRegister(0, input);
+            cpu.SetRegister(1, 0x12345678u);
+            cpu.Step();
+            REQUIRE(cpu.GetRegister(0) == expected);
+            REQUIRE(cpu.GetRegister(1) == 0x12345678u);
+            REQUIRE(cpu.GetRegister(15) == 0x08000000u + (thumb ? 2u : 4u));
+        }
+    }
+}
+
 TEST_CASE("BgAffineSet writes signed matrix and translated reference coordinates") {
     Bus bus(cpu_test::AsRom(0xDF0Eu));
     Cpu cpu(bus, true);

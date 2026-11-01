@@ -34,6 +34,8 @@ public:
     bool PrefetchEnabled() const { return (waitcnt_ & (1u << 14)) != 0; }
     u16 GetWaitcnt() const { return waitcnt_; }
     void SetVideoTiming(u16 scanline, bool hblank);
+    // `pressed` uses one bits for pressed GBA buttons; KEYINPUT reads active-low.
+    void SetKeyInput(u16 pressed);
     void ResetMemory(u32 flags);
     u32 RunDma(unsigned timing);
     void AdvanceTimers(u32 cycles);

@@ -7,13 +7,18 @@ A Game Boy Advance emulator built from scratch, one subsystem at a time.
     cmake -S . -B build
     cmake --build build
 
-SDL2 development headers are required.
+SDL2 2.0.18 or newer development headers are required. CMake fetches the pinned
+Dear ImGui docking source used by the input settings window.
 
 ## Run
 
     build/gba_emu path/to/rom.gba
 
-Press Escape to close the window. To see the pixel pipeline without a ROM:
+Press F1 to open the emulator menu, then choose **Input Configuration** to
+select a controller and remap keyboard or controller bindings. Keyboard and the
+selected controller can be used together. Defaults are WASD for movement, J/K
+for A/B, U/I for L/R, Enter for Start, and Right Shift for Select. Press Escape
+to close the game window. To see the pixel pipeline without a ROM:
 
     build/gba_emu --test-pattern
 
@@ -35,7 +40,8 @@ currently samples memory once per frame, so writes during a scanline do not
 produce raster effects. BIOS-free boot supports the reset, copying, division,
 affine setup, and interrupt wait services needed by Zelda: The Minish Cap.
 Timers, video IRQs, immediate/VBlank/HBlank DMA, alpha blending, brightness,
-and WIN0/1 clipping are implemented. Audio and keypad controls remain pending.
+WIN0/1 clipping, and keyboard/controller keypad input are implemented. Audio,
+keypad interrupts, and sound FIFO DMA remain pending.
 
 Local ROM checks against pinned mGBA keep per-game logs and temporary captures in `/tmp/gba-emu/<ROM name>/`. Successful checks remove their captures and retain logs. See [docs/zelda-boot.md](docs/zelda-boot.md).
 
@@ -47,8 +53,9 @@ Local ROM checks against pinned mGBA keep per-game logs and temporary captures i
 - [x] PPU (base bitmap, tile, affine, and OBJ rendering)
 - [x] Video interrupts and immediate/VBlank/HBlank DMA
 - [x] Timers (prescalers, overflow IRQs, and cascading)
+- [x] Keypad input (keyboard and controller remapping)
 - [ ] Sound FIFO DMA
-- [ ] Keypad input
+- [ ] Keypad interrupt
 - [ ] Sound
 
 ## References

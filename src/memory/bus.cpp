@@ -242,6 +242,12 @@ void Bus::SetVideoTiming(u16 scanline, bool hblank) {
     io_[7] = 0;
 }
 
+void Bus::SetKeyInput(u16 pressed) {
+    const u16 state = static_cast<u16>(0x03FFu & ~pressed);
+    io_[0x130] = static_cast<u8>(state);
+    io_[0x131] = static_cast<u8>(state >> 8);
+}
+
 void Bus::ResetMemory(u32 flags) {
     if (flags & (1u << 0)) ewram_.fill(0);
     if (flags & (1u << 1)) std::fill(iwram_.begin(), iwram_.end() - 0x200, 0);

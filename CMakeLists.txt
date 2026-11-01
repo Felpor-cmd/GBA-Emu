@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 project(gba_emu LANGUAGES CXX)
 
-find_package(SDL2 REQUIRED)
+find_package(SDL2 2.0.18 REQUIRED)
+include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,13 +24,33 @@ add_executable(gba_emu
     src/cpu/cpu_exception.cpp
     src/ppu/ppu.cpp
     src/memory/bus.cpp
+    src/input/input_config.cpp
+    src/input/input_manager.cpp
+    src/ui/input_settings_ui.cpp
 )
 
+FetchContent_Declare(
+  DearImGui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG        v1.93.0-docking
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(DearImGui)
+add_library(imgui STATIC
+    ${dearimgui_SOURCE_DIR}/imgui.cpp
+    ${dearimgui_SOURCE_DIR}/imgui_draw.cpp
+    ${dearimgui_SOURCE_DIR}/imgui_tables.cpp
+    ${dearimgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${dearimgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+    ${dearimgui_SOURCE_DIR}/backends/imgui_impl_sdlrenderer2.cpp
+)
+target_include_directories(imgui PUBLIC ${dearimgui_SOURCE_DIR} ${dearimgui_SOURCE_DIR}/backends)
+target_link_libraries(imgui PUBLIC SDL2::SDL2)
+
 target_include_directories(gba_emu PRIVATE src)
-target_link_libraries(gba_emu PRIVATE SDL2::SDL2)
+target_link_libraries(gba_emu PRIVATE SDL2::SDL2 imgui)
 target_compile_options(gba_emu PRIVATE -Wall -Wextra)
 
-include(FetchContent)
 FetchContent_Declare(
   Catch2
   GIT_REPOSITORY https://github.com/catchorg/Catch2.git
@@ -54,6 +75,9 @@ add_executable(gba_tests
     test/bus/bus_test_sram_read_write.cpp
     test/bus/bus_test_dma.cpp
     test/bus/bus_test_timers.cpp
+    test/bus/bus_test_keyinput.cpp
+    test/input/input_config_test.cpp
+    test/input/input_manager_test.cpp
     test/cpu/cpu_test_condition_code_evaluation.cpp
     test/cpu/cpu_test_fetch_decode_skeleton.cpp
     test/cpu/cpu_test_branch_fetch_width.cpp
@@ -79,6 +103,8 @@ add_executable(gba_tests
     test/ppu/ppu_test_bitmap.cpp
     test/ppu/ppu_test_tiles.cpp
     test/ppu/ppu_test_effects.cpp
+    src/input/input_config.cpp
+    src/input/input_manager.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp
@@ -92,7 +118,7 @@ add_executable(gba_tests
 )
 target_include_directories(gba_tests PRIVATE src)
 target_compile_definitions(gba_tests PRIVATE FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm")
-target_link_libraries(gba_tests PRIVATE Catch2::Catch2)
+target_link_libraries(gba_tests PRIVATE Catch2::Catch2 SDL2::SDL2)
 target_compile_options(gba_tests PRIVATE -Wall -Wextra)
 
 include(CTest)

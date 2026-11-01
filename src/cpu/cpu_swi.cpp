@@ -46,6 +46,16 @@ void Cpu::ExecuteSoftwareInterrupt(u32 instruction, u32 instruction_address) {
         regs_[3] = static_cast<u32>(quotient < 0 ? -quotient : quotient);
         return;
     }
+    if (emulate_bios_ && swi == 8) { // Sqrt: floor(sqrt(unsigned r0)).
+        const u32 input = regs_[0];
+        u32 root = 0;
+        for (u32 bit = 1u << 15; bit; bit >>= 1) {
+            const u32 candidate = root | bit;
+            if (candidate * candidate <= input) root = candidate;
+        }
+        regs_[0] = root;
+        return;
+    }
     if (emulate_bios_ && (swi == 0x0E || swi == 0x0F)) {
         u32 source = regs_[0], destination = regs_[1];
         for (u32 i = 0; i < regs_[2]; ++i) {

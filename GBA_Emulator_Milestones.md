@@ -333,7 +333,7 @@ when you can actually look at them.
 
 ---
 
-## Phase 7 — DMA
+## Phase 7 — DMA (general DMA complete; FIFO DMA deferred to sound)
 
 - [x] Immediate (one-shot) DMA transfer
 - [x] VBlank-triggered DMA
@@ -344,7 +344,7 @@ when you can actually look at them.
 
 ## Phase 8 — Input
 
-- [ ] Keypad register reflects real keyboard or controller state
+- [x] Keypad register reflects real keyboard or controller state
 - [ ] *(optional)* Keypad interrupt (rarely used by real games, low priority)
 
 ---
