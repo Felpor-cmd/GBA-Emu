@@ -338,7 +338,7 @@ when you can actually look at them.
 - [x] Immediate (one-shot) DMA transfer
 - [x] VBlank-triggered DMA
 - [x] HBlank-triggered DMA
-- [ ] Sound FIFO DMA (you'll come back to wire this up properly once sound exists)
+- [x] Sound FIFO DMA (timer-triggered four-word refills on DMA1/2)
 
 ---
 
@@ -351,9 +351,9 @@ when you can actually look at them.
 
 ## Phase 9 — Sound
 
-- [ ] The 4 legacy Game-Boy-style channels
-- [ ] The 2 direct sound (DMA-fed) channels
-- [ ] Mixing all channels together and outputting real audio
+- [x] The 4 legacy Game-Boy-style channels
+- [x] The 2 direct sound (DMA-fed) channels
+- [x] Mixing all channels together and outputting real audio
 
 ---
 

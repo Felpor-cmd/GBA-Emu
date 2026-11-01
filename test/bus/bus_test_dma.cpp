@@ -76,7 +76,7 @@ TEST_CASE("RegisterRamReset independently restores I/O groups without erasing ke
     REQUIRE(bus.Read16(0x04000120) == 0);
     bus.ResetMemory(0x20);
     REQUIRE(bus.Read16(0x04000134) == 0x8000);
-    REQUIRE(bus.Read16(0x04000088) == 0x1234);
+    REQUIRE(bus.Read16(0x04000088) == 0x0234); // SOUNDBIAS exposes only documented bits.
     bus.ResetMemory(0x40);
     REQUIRE(bus.Read16(0x04000088) == 0x200);
     REQUIRE(bus.Read16(0x04000008) == 0xFFFF);

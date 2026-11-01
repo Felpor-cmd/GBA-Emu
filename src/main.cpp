@@ -10,9 +10,19 @@
 #include <vector>
 #include "emulator.hpp"
 #include "input/input_manager.hpp"
+#include "sound/audio_output.hpp"
 #include "ui/input_settings_ui.hpp"
 
 namespace {
+void AudioCallback(void* userdata, Uint8* stream, int length) {
+    auto& output = *static_cast<AudioOutput*>(userdata);
+    const unsigned frames = static_cast<unsigned>(length) / (sizeof(s16) * 2);
+    output.Fill(reinterpret_cast<s16*>(stream), frames);
+    const unsigned written = frames * 2 * sizeof(s16);
+    if (written < static_cast<unsigned>(length))
+        std::fill(stream + written, stream + length, 0);
+}
+
 std::vector<u8> LoadRom(const char* path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file || file.tellg() <= 0) throw std::runtime_error("Cannot read ROM");
@@ -28,6 +38,8 @@ int main(int argc, char** argv) {
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
     SDL_Texture* texture = nullptr;
+    SDL_AudioDeviceID audio_device = 0;
+    std::unique_ptr<AudioOutput> audio_output;
     InputManager input;
     InputSettingsUi settings_ui;
     int result = 0;
@@ -53,6 +65,7 @@ int main(int argc, char** argv) {
         }
         if (headless && !limit) throw std::runtime_error("--headless requires --frames N");
         emulator = std::make_unique<Emulator>(pattern ? std::vector<u8>{} : LoadRom(argv[1]), !pattern);
+        audio_output = std::make_unique<AudioOutput>(emulator->Memory());
         if (pattern) {
             auto& bus = emulator->Memory();
             bus.Write16(0x04000000u, 0x0403u);
@@ -61,7 +74,7 @@ int main(int argc, char** argv) {
         }
         if (!headless) {
             SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0");
-            if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK) != 0)
+            if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK) != 0)
                 throw std::runtime_error(SDL_GetError());
             window = SDL_CreateWindow("GBA Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                 720, 480, SDL_WINDOW_SHOWN);
@@ -72,10 +85,20 @@ int main(int argc, char** argv) {
             if (!texture) throw std::runtime_error(SDL_GetError());
             if (!input.Initialize()) throw std::runtime_error("Could not initialize controller input");
             if (!settings_ui.Initialize(window, renderer)) throw std::runtime_error("Could not initialize input settings UI");
+            SDL_AudioSpec desired_audio{};
+            desired_audio.freq = 48'000;
+            desired_audio.format = AUDIO_S16SYS;
+            desired_audio.channels = 2;
+            desired_audio.samples = 1024;
+            desired_audio.callback = AudioCallback;
+            desired_audio.userdata = audio_output.get();
+            audio_device = SDL_OpenAudioDevice(nullptr, 0, &desired_audio, nullptr, 0);
+            if (!audio_device) std::cerr << "Audio output unavailable: " << SDL_GetError() << '\n';
         }
         constexpr double period = static_cast<double>(Ppu::kCyclesPerFrame) / 16777216.0;
         auto previous = std::chrono::steady_clock::now();
         double accumulator = 0;
+        bool audio_started = false;
         bool running = true;
         while (running) {
             if (!headless) {
@@ -98,6 +121,10 @@ int main(int argc, char** argv) {
                 while (accumulator >= period && running) {
                     emulator->RunFrame();
                     accumulator -= period;
+                    if (audio_device && !audio_started && audio_output->Ready()) {
+                        SDL_PauseAudioDevice(audio_device, 0);
+                        audio_started = true;
+                    }
                     if (limit && emulator->Frames() >= limit) running = false;
                 }
                 if (renderer) {
@@ -127,6 +154,7 @@ int main(int argc, char** argv) {
     }
     settings_ui.Shutdown();
     input.Shutdown();
+    if (audio_device) SDL_CloseAudioDevice(audio_device);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

@@ -24,6 +24,8 @@ add_executable(gba_emu
     src/cpu/cpu_exception.cpp
     src/ppu/ppu.cpp
     src/memory/bus.cpp
+    src/sound/sound.cpp
+    src/sound/audio_output.cpp
     src/input/input_config.cpp
     src/input/input_manager.cpp
     src/ui/input_settings_ui.cpp
@@ -75,6 +77,8 @@ add_executable(gba_tests
     test/bus/bus_test_sram_read_write.cpp
     test/bus/bus_test_dma.cpp
     test/bus/bus_test_timers.cpp
+    test/bus/bus_test_sound.cpp
+    test/sound/audio_output_test.cpp
     test/bus/bus_test_keyinput.cpp
     test/input/input_config_test.cpp
     test/input/input_manager_test.cpp
@@ -115,6 +119,8 @@ add_executable(gba_tests
     src/cpu/cpu_exception.cpp
     src/ppu/ppu.cpp
     src/memory/bus.cpp
+    src/sound/sound.cpp
+    src/sound/audio_output.cpp
 )
 target_include_directories(gba_tests PRIVATE src)
 target_compile_definitions(gba_tests PRIVATE FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm")
@@ -129,7 +135,7 @@ add_executable(opcode_rom_runner
     test/reference/opcode_rom_runner.cpp
     src/cpu/cpu.cpp src/cpu/cpu_branch.cpp src/cpu/cpu_data_processing.cpp
     src/cpu/cpu_memory.cpp src/cpu/cpu_psr.cpp src/cpu/cpu_swi.cpp
-    src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp)
+    src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp src/sound/sound.cpp)
 target_include_directories(opcode_rom_runner PRIVATE src)
 target_compile_options(opcode_rom_runner PRIVATE -Wall -Wextra)
 add_test(NAME opcode_arm COMMAND opcode_rom_runner
@@ -147,7 +153,7 @@ if(DEFINED MGBA_ROOT)
         test/reference/mgba_trace_compare.cpp
         src/cpu/cpu.cpp src/cpu/cpu_branch.cpp src/cpu/cpu_data_processing.cpp
         src/cpu/cpu_memory.cpp src/cpu/cpu_psr.cpp src/cpu/cpu_swi.cpp
-        src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp)
+        src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp src/sound/sound.cpp)
     target_include_directories(mgba_trace_compare PRIVATE src "${MGBA_INCLUDE_DIR}")
     target_link_libraries(mgba_trace_compare PRIVATE "${MGBA_LIBRARY}")
     add_test(NAME mgba_arm_trace COMMAND mgba_trace_compare

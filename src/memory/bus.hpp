@@ -2,6 +2,7 @@
 #include <array>
 #include <vector>
 #include "../types.hpp"
+#include "../sound/sound.hpp"
 
 // Region sizes from the GBA memory map (GBATEK: GBA Memory Map).
 constexpr u32 kBiosSize    = 0x4000;    // 16 KB  BIOS ROM
@@ -38,7 +39,9 @@ public:
     void SetKeyInput(u16 pressed);
     void ResetMemory(u32 flags);
     u32 RunDma(unsigned timing);
-    void AdvanceTimers(u32 cycles);
+    u32 AdvanceTimers(u32 cycles);
+    bool PopAudioSample(s16& left, s16& right);
+    u32 QueuedAudioSamples() const { return sound_.QueuedSamples(); }
     void RequestInterrupt(u16 bits);
     bool InterruptPending() const { return (Read16(0x04000200) & Read16(0x04000202)) != 0; }
     bool IrqEnabled() const { return (Read16(0x04000208) & 1u) && InterruptPending(); }
@@ -54,6 +57,7 @@ private:
     std::array<u8, kIoSize>      io_{};
     std::array<u8, kSramSize>    sram_{};
     std::vector<u8>              rom_;  
+    Sound sound_{};
     u16 waitcnt_ = 0;
     bool has_bios_ = false;
     struct Dma { u32 source = 0, destination = 0, reload = 0; bool enabled = false; };
@@ -66,4 +70,5 @@ private:
     };
     std::array<Timer, 4> timers_{};
     u64 IncrementTimer(unsigned timer, u64 ticks);
+    u32 RunSoundDma(u8 requests);
 };

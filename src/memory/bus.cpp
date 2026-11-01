@@ -21,6 +21,8 @@ u8 Bus::Read8(u32 address) const {
         case 0x00: return bios_[address & (kBiosSize - 1)];
 
         case 0x04:
+            if (address >= 0x04000060u && address < 0x040000A8u)
+                return sound_.ReadRegister(address & 0x3FFu);
             if (address >= 0x04000100u && address < 0x04000110u) {
                 const u32 timer_offset = address - 0x04000100u;
                 const auto& timer = timers_[timer_offset / 4];
@@ -70,6 +72,10 @@ void Bus::Write8(u32 address, u8 value) {
         case 0x00: break; // BIOS is read-only, ignore writes
 
         case 0x04:
+            if (address >= 0x04000060u && address < 0x040000A8u) {
+                sound_.WriteRegister(address & 0x3FFu, value);
+                break;
+            }
             if (address >= 0x04000100u && address < 0x04000110u) {
                 const u32 timer_offset = address - 0x04000100u;
                 const unsigned timer_index = timer_offset / 4;
@@ -148,6 +154,9 @@ void Bus::RequestInterrupt(u16 bits) {
 }
 
 u32 Bus::RunDma(unsigned timing) {
+    // Timing mode 3 is sound FIFO (DMA1/2) or video capture (DMA3), not a
+    // normal count-based transfer. Sound requests are dispatched by timers.
+    if (timing == 3) return 0;
     u32 cycles = 0;
     for (unsigned channel = 0; channel < 4; ++channel) {
         auto& dma = dma_[channel];
@@ -197,9 +206,10 @@ u64 Bus::IncrementTimer(unsigned timer_index, u64 ticks) {
     return overflows;
 }
 
-void Bus::AdvanceTimers(u32 cycles) {
+u32 Bus::AdvanceTimers(u32 cycles) {
     constexpr u32 prescalers[] = {1, 64, 256, 1024};
     std::array<u64, 4> overflows{};
+    u32 dma_cycles = 0;
     for (unsigned index = 0; index < timers_.size(); ++index) {
         auto& timer = timers_[index];
         if (!(timer.control & 0x80u)) continue;
@@ -218,7 +228,47 @@ void Bus::AdvanceTimers(u32 cycles) {
         overflows[index] = IncrementTimer(index, ticks);
         if (overflows[index] && (timer.control & 0x40u))
             RequestInterrupt(static_cast<u16>(1u << (3 + index)));
+        for (u64 overflow = 0; overflow < overflows[index]; ++overflow)
+            dma_cycles += RunSoundDma(sound_.TimerOverflow(index));
     }
+    // Timer FIFO clocks at the end of this elapsed interval; sample output at
+    // that boundary sees the byte just clocked into the DAC.
+    sound_.Advance(cycles);
+    return dma_cycles;
+}
+
+u32 Bus::RunSoundDma(u8 requests) {
+    u32 cycles = 0;
+    for (unsigned fifo = 0; fifo < 2; ++fifo) {
+        if (!(requests & (1u << fifo))) continue;
+        const u32 fifo_address = fifo == 0 ? 0x040000A0u : 0x040000A4u;
+        for (unsigned channel = 1; channel <= 2; ++channel) {
+            auto& dma = dma_[channel];
+            const u32 base = 0x040000B0u + channel * 12;
+            const u16 control = Read16(base + 10);
+            if (!dma.enabled || ((control >> 12) & 3u) != 3u ||
+                !(control & (1u << 9)) || Read32(base + 4) != fifo_address ||
+                ((control >> 7) & 3u) == 3u) continue;
+
+            dma.source &= ~3u;
+            cycles += 2; // DMA setup.
+            for (unsigned word = 0; word < 4; ++word) {
+                cycles += AccessCycles(dma.source, 4, word != 0) +
+                          AccessCycles(fifo_address, 4, word != 0);
+                Write32(fifo_address, Read32(dma.source));
+                const unsigned source_mode = (control >> 7) & 3u;
+                if (source_mode == 0) dma.source += 4;
+                else if (source_mode == 1) dma.source -= 4;
+            }
+            if (control & (1u << 14)) RequestInterrupt(static_cast<u16>(1u << (8 + channel)));
+            break; // DMA1 has priority over DMA2 for the same FIFO request.
+        }
+    }
+    return cycles;
+}
+
+bool Bus::PopAudioSample(s16& left, s16& right) {
+    return sound_.PopSample(left, right);
 }
 
 void Bus::Write16(u32 address, u16 value) {
@@ -262,7 +312,8 @@ void Bus::ResetMemory(u32 flags) {
         Write16(0x04000134u, 0x8000);
     }
     if (flags & (1u << 6)) {
-        for (u32 offset = 0x60; offset < 0xA8; offset += 2) Write16(0x04000000u + offset, 0);
+        Write16(0x04000084u, 0);
+        Write16(0x04000082u, 0x8800u); // Reset both direct-sound FIFOs.
         Write16(0x04000088u, 0x0200);
     }
     if (flags & (1u << 7)) {
