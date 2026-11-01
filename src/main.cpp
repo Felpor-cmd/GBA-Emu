@@ -13,6 +13,7 @@
 #include "input/input_manager.hpp"
 #include "sound/audio_output.hpp"
 #include "ui/input_settings_ui.hpp"
+#include "memory/save_file.hpp"
 
 namespace {
 void AudioCallback(void* userdata, Uint8* stream, int length) {
@@ -36,6 +37,8 @@ std::vector<u8> LoadRom(const char* path) {
 }
 int main(int argc, char** argv) {
     std::unique_ptr<Emulator> emulator;
+    std::unique_ptr<SaveFile> save_file;
+    bool save_loaded = false;
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
     SDL_Texture* texture = nullptr;
@@ -45,16 +48,31 @@ int main(int argc, char** argv) {
     InputSettingsUi settings_ui;
     int result = 0;
     try {
-        if (argc < 2) throw std::runtime_error("Usage: gba_emu <rom.gba|--test-pattern> [--headless] [--frames N] [--dump-frame file.ppm]");
+        if (argc < 2) throw std::runtime_error("Usage: gba_emu <rom.gba|--test-pattern> [--headless] [--frames N] [--dump-frame file.ppm] [--save-path file.sav] [--save-type auto|sram|flash64|flash128|eeprom512|eeprom8k] [--no-save]");
         const bool pattern = std::string(argv[1]) == "--test-pattern";
         bool headless = false;
         bool trace = false;
         bool audio_diagnostics = false;
+        bool no_save = false;
+        BackupType save_type = BackupType::Auto;
+        std::filesystem::path save_path;
         u64 limit = 0;
         std::string capture;
         for (int i = 2; i < argc; ++i) {
             const std::string option = argv[i];
             if (option == "--headless") headless = true;
+            else if (option == "--no-save") no_save = true;
+            else if (option == "--save-path" && i + 1 < argc) save_path = argv[++i];
+            else if (option == "--save-type" && i + 1 < argc) {
+                const std::string type = argv[++i];
+                if (type == "auto") save_type = BackupType::Auto;
+                else if (type == "sram") save_type = BackupType::Sram;
+                else if (type == "flash64") save_type = BackupType::Flash64;
+                else if (type == "flash128") save_type = BackupType::Flash128;
+                else if (type == "eeprom512") save_type = BackupType::Eeprom512;
+                else if (type == "eeprom8k") save_type = BackupType::Eeprom8K;
+                else throw std::runtime_error("Unknown save type: " + type);
+            }
             else if (option == "--trace") trace = true;
             else if (option == "--audio-diagnostics") audio_diagnostics = true;
             else if (option == "--frames" && i + 1 < argc) {
@@ -67,7 +85,17 @@ int main(int argc, char** argv) {
             else throw std::runtime_error("Unknown or incomplete option: " + option);
         }
         if (headless && !limit) throw std::runtime_error("--headless requires --frames N");
+        if (pattern && (!save_path.empty() || save_type != BackupType::Auto))
+            throw std::runtime_error("Save options require a ROM");
+        if (no_save && !save_path.empty()) throw std::runtime_error("--no-save conflicts with --save-path");
         emulator = std::make_unique<Emulator>(pattern ? std::vector<u8>{} : LoadRom(argv[1]), !pattern);
+        if (save_type != BackupType::Auto) emulator->Memory().ConfigureBackup(save_type);
+        if (!pattern && !no_save) {
+            if (save_path.empty()) save_path = std::filesystem::path(argv[1]).replace_extension(".sav");
+            save_file = std::make_unique<SaveFile>(save_path);
+            save_file->Load(emulator->Memory());
+            save_loaded = true;
+        }
         audio_output = std::make_unique<AudioOutput>(emulator->Memory());
         if (pattern) {
             auto& bus = emulator->Memory();
@@ -101,6 +129,7 @@ int main(int argc, char** argv) {
         constexpr double period = static_cast<double>(Ppu::kCyclesPerFrame) / 16777216.0;
         auto previous = std::chrono::steady_clock::now();
         const auto started = previous;
+        auto next_save_flush = previous + std::chrono::seconds(5);
         auto next_audio_log = previous;
         std::ofstream audio_log;
         if (audio_diagnostics) {
@@ -115,6 +144,10 @@ int main(int argc, char** argv) {
         bool audio_started = false;
         bool running = true;
         while (running) {
+            if (save_file && std::chrono::steady_clock::now() >= next_save_flush) {
+                save_file->Flush(emulator->Memory());
+                next_save_flush = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            }
             if (!headless) {
                 SDL_Event event;
                 while (SDL_PollEvent(&event)) {
@@ -183,6 +216,13 @@ int main(int argc, char** argv) {
         std::cerr << error.what() << '\n';
         if (emulator) emulator->PrintTrace(std::cerr);
         result = 1;
+    }
+    if (save_file && save_loaded && emulator) {
+        try { save_file->Flush(emulator->Memory()); }
+        catch (const std::exception& error) {
+            std::cerr << error.what() << '\n';
+            result = 1;
+        }
     }
     settings_ui.Shutdown();
     input.Shutdown();

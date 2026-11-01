@@ -3,6 +3,7 @@
 #include <vector>
 #include "../types.hpp"
 #include "../sound/sound.hpp"
+#include "backup.hpp"
 
 // Region sizes from the GBA memory map (GBATEK: GBA Memory Map).
 constexpr u32 kBiosSize    = 0x4000;    // 16 KB  BIOS ROM
@@ -53,6 +54,12 @@ public:
     bool InterruptPending() const { return (Read16(0x04000200) & Read16(0x04000202)) != 0; }
     bool IrqEnabled() const { return (Read16(0x04000208) & 1u) && InterruptPending(); }
     bool HasBios() const { return has_bios_; }
+    BackupType GetBackupType() const { return backup_.Type(); }
+    void ConfigureBackup(BackupType type) { backup_.Configure(type); }
+    void LoadBackup(const std::vector<u8>& bytes) { backup_.Load(bytes); }
+    const std::vector<u8>& BackupData() const { return backup_.Data(); }
+    bool BackupDirty() const { return backup_.Dirty(); }
+    void ClearBackupDirty() { backup_.ClearDirty(); }
 
 private:
     std::array<u8, kBiosSize>    bios_{};
@@ -62,7 +69,7 @@ private:
     std::array<u8, kVramSize>    vram_{};
     std::array<u8, kOamSize>     oam_{};
     std::array<u8, kIoSize>      io_{};
-    std::array<u8, kSramSize>    sram_{};
+    mutable Backup backup_;
     std::vector<u8>              rom_;  
     Sound sound_{};
     u16 waitcnt_ = 0;

@@ -24,6 +24,8 @@ add_executable(gba_emu
     src/cpu/cpu_exception.cpp
     src/ppu/ppu.cpp
     src/memory/bus.cpp
+    src/memory/backup.cpp
+    src/memory/save_file.cpp
     src/sound/sound.cpp
     src/sound/audio_output.cpp
     src/input/input_config.cpp
@@ -81,6 +83,8 @@ add_executable(gba_tests
     test/bus/bus_test_io_register_placeholder_read_write.cpp
     test/bus/bus_test_rom_read_all_three_mirrored_address_windows_bounds_checked.cpp
     test/bus/bus_test_sram_read_write.cpp
+    test/bus/bus_test_backup.cpp
+    test/bus/save_file_test.cpp
     test/bus/bus_test_dma.cpp
     test/bus/bus_test_timers.cpp
     test/bus/bus_test_sound.cpp
@@ -125,6 +129,8 @@ add_executable(gba_tests
     src/cpu/cpu_exception.cpp
     src/ppu/ppu.cpp
     src/memory/bus.cpp
+    src/memory/backup.cpp
+    src/memory/save_file.cpp
     src/sound/sound.cpp
     src/sound/audio_output.cpp
 )
@@ -141,7 +147,7 @@ add_executable(opcode_rom_runner
     test/reference/opcode_rom_runner.cpp
     src/cpu/cpu.cpp src/cpu/cpu_branch.cpp src/cpu/cpu_data_processing.cpp
     src/cpu/cpu_memory.cpp src/cpu/cpu_psr.cpp src/cpu/cpu_swi.cpp
-    src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp src/sound/sound.cpp)
+    src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp src/memory/backup.cpp src/sound/sound.cpp)
 target_include_directories(opcode_rom_runner PRIVATE src)
 target_compile_options(opcode_rom_runner PRIVATE -Wall -Wextra)
 add_test(NAME opcode_arm COMMAND opcode_rom_runner
@@ -170,11 +176,16 @@ if(DEFINED MGBA_ROOT)
     add_executable(mgba_frame_capture test/reference/mgba_frame_capture.cpp)
     target_include_directories(mgba_frame_capture PRIVATE "${MGBA_INCLUDE_DIR}")
     target_link_libraries(mgba_frame_capture PRIVATE "${MGBA_LIBRARY}")
+    add_executable(mgba_backup_compare test/reference/mgba_backup_compare.cpp
+        src/memory/bus.cpp src/memory/backup.cpp src/sound/sound.cpp)
+    target_include_directories(mgba_backup_compare PRIVATE src "${MGBA_INCLUDE_DIR}")
+    target_link_libraries(mgba_backup_compare PRIVATE "${MGBA_LIBRARY}")
+    add_test(NAME mgba_backup_protocol COMMAND mgba_backup_compare)
     add_executable(mgba_trace_compare
         test/reference/mgba_trace_compare.cpp
         src/cpu/cpu.cpp src/cpu/cpu_branch.cpp src/cpu/cpu_data_processing.cpp
         src/cpu/cpu_memory.cpp src/cpu/cpu_psr.cpp src/cpu/cpu_swi.cpp
-        src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp src/sound/sound.cpp)
+        src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp src/memory/backup.cpp src/sound/sound.cpp)
     target_include_directories(mgba_trace_compare PRIVATE src "${MGBA_INCLUDE_DIR}")
     target_link_libraries(mgba_trace_compare PRIVATE "${MGBA_LIBRARY}")
     add_test(NAME mgba_arm_trace COMMAND mgba_trace_compare

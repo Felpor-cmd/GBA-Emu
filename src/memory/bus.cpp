@@ -9,7 +9,7 @@ u32 VramOffset(u32 address) {
 }
 }
 
-Bus::Bus(std::vector<u8> rom, std::vector<u8> bios) : rom_(std::move(rom)) {
+Bus::Bus(std::vector<u8> rom, std::vector<u8> bios) : backup_(rom), rom_(std::move(rom)) {
     has_bios_ = !bios.empty();
     io_[0x130] = 0xFF;
     io_[0x131] = 0x03;
@@ -51,13 +51,15 @@ u8 Bus::Read8(u32 address) const {
                 return rom_[offset]; // ROM is read-only, return value from ROM
         }
 
-        case 0x0E: return sram_[address & (kSramSize - 1)];
+        case 0x0E: return backup_.ReadByte(address, hardware_cycles_);
 
         default: return 0;
     }
 }
 
 u16 Bus::Read16(u32 address) const {
+    if (backup_.IsEeprom() && backup_.EepromMapped(address))
+        return backup_.ReadEepromBit(hardware_cycles_);
     return static_cast<u16>(Read8(address)) |
            (static_cast<u16>(Read8(address + 1)) << 8);
 }
@@ -143,7 +145,7 @@ void Bus::Write8(u32 address, u8 value) {
             break;
         }
         
-        case 0x0E: sram_[address & (kSramSize - 1)] = value; break;
+        case 0x0E: backup_.WriteByte(address, value, hardware_cycles_); break;
 
         default: break;
     }
@@ -174,7 +176,14 @@ u32 Bus::RunDma(unsigned timing) {
         for (u32 i = 0; i < count; ++i) {
             cycles += AccessCycles(dma.source, width, i != 0) + AccessCycles(dma.destination, width, i != 0);
             if (width == 4) Write32(dma.destination, Read32(dma.source));
-            else Write16(dma.destination, Read16(dma.source));
+            else {
+                const u16 value = Read16(dma.source);
+                if (channel == 3 && dma.destination >> 24 == 0x0D &&
+                    backup_.EepromMapped(dma.destination) &&
+                    (backup_.IsEeprom() || backup_.Type() == BackupType::Auto))
+                    backup_.WriteEepromBit(value, count - i, hardware_cycles_ + cycles);
+                else Write16(dma.destination, value);
+            }
             if (src_mode == 0) dma.source += width;
             else if (src_mode == 1) dma.source -= width;
             if (dst_mode == 0 || dst_mode == 3) dma.destination += width;
@@ -299,6 +308,10 @@ bool Bus::PopAudioSample(s16& left, s16& right) {
 }
 
 void Bus::Write16(u32 address, u16 value) {
+    if (backup_.IsEeprom() && backup_.EepromMapped(address)) {
+        backup_.WriteEepromBit(value, 1, hardware_cycles_);
+        return;
+    }
     Write8(address, static_cast<u8>(value & 0xFF));
     Write8(address + 1, static_cast<u8>((value >> 8) & 0xFF));
 }

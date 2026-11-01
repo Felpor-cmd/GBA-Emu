@@ -72,7 +72,7 @@ def main():
         reference_log = logs_dir / f"mgba-{frame_count}.log"
         with emulator_log.open("wb") as log:
             subprocess.run([str(args.emulator.resolve()), str(args.rom.resolve()), "--headless",
-                            "--frames", str(frame_count), "--dump-frame", str(actual)],
+                            "--no-save", "--frames", str(frame_count), "--dump-frame", str(actual)],
                            check=True, stdout=log, stderr=subprocess.STDOUT)
         with reference_log.open("wb") as log:
             subprocess.run([str(args.reference.resolve()), str(args.rom.resolve()),

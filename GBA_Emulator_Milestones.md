@@ -362,9 +362,9 @@ when you can actually look at them.
 Different cartridges used different save chips — SRAM was the simple case
 you already built.
 
-- [ ] Flash memory save support
-- [ ] EEPROM save support
-- [ ] Persist save data to a file on disk between runs (right now everything resets when the program closes)
+- [x] Flash memory save support
+- [x] EEPROM save support
+- [x] Persist save data to a file on disk between runs
 
 ---
 
