@@ -1,0 +1,45 @@
+name: ARM validation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ctest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -G Ninja
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Full CTest suite
+        run: ctest --test-dir build --output-on-failure
+
+  mgba-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify assembled fixtures
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils-arm-none-eabi
+          scripts/regenerate_arm_fixtures.sh
+          git diff --exit-code -- test/fixtures/arm
+      - name: Build pinned mGBA 0.10.5
+        run: |
+          git clone --depth 1 --branch 0.10.5 https://github.com/mgba-emu/mgba.git mgba-src
+          test "$(git -C mgba-src rev-parse HEAD)" = 26b7884bc25a5933960f3cdcd98bac1ae14d42e2
+          cmake -S mgba-src -B mgba-build -G Ninja \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            -DBUILD_QT=OFF -DBUILD_SDL=OFF -DENABLE_SCRIPTING=OFF \
+            -DBUILD_SHARED=ON -DBUILD_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/mgba-install"
+          cmake --build mgba-build --parallel
+          cmake --install mgba-build
+      - name: Build comparator
+        run: |
+          cmake -S . -B build -G Ninja -DMGBA_ROOT="$PWD/mgba-install"
+          cmake --build build --target mgba_trace_compare --parallel
+      - name: Compare instruction traces
+        run: ctest --test-dir build -R '^mgba_arm_.*trace$' --output-on-failure

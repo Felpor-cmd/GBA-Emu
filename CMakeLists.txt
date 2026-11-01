@@ -11,6 +11,13 @@ endif()
 add_executable(gba_emu
     src/main.cpp
     src/cpu/cpu.cpp
+    src/cpu/cpu_branch.cpp
+    src/cpu/cpu_data_processing.cpp
+    src/cpu/cpu_memory.cpp
+    src/cpu/cpu_psr.cpp
+    src/cpu/cpu_swi.cpp
+    src/cpu/cpu_thumb.cpp
+    src/cpu/cpu_exception.cpp
     src/memory/bus.cpp
 )
 
@@ -49,13 +56,46 @@ add_executable(gba_tests
     test/cpu/cpu_test_block_data_transfer.cpp
     test/cpu/cpu_test_multiply.cpp
     test/cpu/cpu_test_psr_transfer.cpp
+    test/cpu/cpu_test_swi.cpp
+    test/cpu/cpu_test_thumb_shift.cpp
+    test/cpu/cpu_test_single_data_swap.cpp
+    test/cpu/cpu_test_user_mode_transfer.cpp
+    test/cpu/cpu_test_coprocessor.cpp
+    test/cpu/cpu_test_pc_behavior.cpp
+    test/cpu/cpu_test_memory_edge_cases.cpp
+    test/cpu/cpu_test_timing_and_decode.cpp
+    test/cpu/cpu_test_arm_fixtures.cpp
     src/cpu/cpu.cpp
+    src/cpu/cpu_branch.cpp
+    src/cpu/cpu_data_processing.cpp
+    src/cpu/cpu_memory.cpp
+    src/cpu/cpu_psr.cpp
+    src/cpu/cpu_swi.cpp
+    src/cpu/cpu_thumb.cpp
+    src/cpu/cpu_exception.cpp
     src/memory/bus.cpp
 )
 target_include_directories(gba_tests PRIVATE src)
+target_compile_definitions(gba_tests PRIVATE FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm")
 target_link_libraries(gba_tests PRIVATE Catch2::Catch2)
 target_compile_options(gba_tests PRIVATE -Wall -Wextra)
 
 include(CTest)
 include(Catch)
 catch_discover_tests(gba_tests)
+
+if(DEFINED MGBA_ROOT)
+    find_path(MGBA_INCLUDE_DIR mgba/core/core.h PATHS "${MGBA_ROOT}/include" NO_DEFAULT_PATH REQUIRED)
+    find_library(MGBA_LIBRARY mgba PATHS "${MGBA_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+    add_executable(mgba_trace_compare
+        test/reference/mgba_trace_compare.cpp
+        src/cpu/cpu.cpp src/cpu/cpu_branch.cpp src/cpu/cpu_data_processing.cpp
+        src/cpu/cpu_memory.cpp src/cpu/cpu_psr.cpp src/cpu/cpu_swi.cpp
+        src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp)
+    target_include_directories(mgba_trace_compare PRIVATE src "${MGBA_INCLUDE_DIR}")
+    target_link_libraries(mgba_trace_compare PRIVATE "${MGBA_LIBRARY}")
+    add_test(NAME mgba_arm_trace COMMAND mgba_trace_compare
+        "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/sequence.gba" 9)
+    add_test(NAME mgba_arm_multiply_block_trace COMMAND mgba_trace_compare
+        "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/multiply_block.gba" 11)
+endif()

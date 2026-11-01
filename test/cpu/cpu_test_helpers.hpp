@@ -84,4 +84,74 @@ inline std::vector<u8> AsRom(u32 instr) {
             static_cast<u8>(instr >> 16), static_cast<u8>(instr >> 24)};
 }
 
+inline u32 EncodeSingleDataSwap(u32 cond, bool byte, u32 rn, u32 rd, u32 rm) {
+    return (cond << 28) | (0b00010 << 23) |
+           (byte ? 1u : 0u) << 22 |
+           (rn << 16) | (rd << 12) | (0b00001001 << 4) | (rm & 0xF);
+}
+
+inline u32 EncodeUserModeTransfer(u32 cond, bool load, bool byte, u32 rn, u32 rd,
+                                   s32 offset) {
+    bool add_offset = offset >= 0;
+    u32 magnitude = static_cast<u32>(add_offset ? offset : -offset);
+    return (cond << 28) | (0b01 << 26) |
+           (0u << 24) |                // P=0: post-indexed
+           (add_offset ? 1u : 0u) << 23 |  // U bit
+           (byte ? 1u : 0u) << 22 |    // B bit
+           (1u << 21) |                // T=1: force user-mode access (only in post-indexed)
+           (load ? 1u : 0u) << 20 |    // L bit
+           (rn << 16) | (rd << 12) | (magnitude & 0xFFF);
+}
+
+inline u32 EncodeUserModeRegisterTransfer(u32 cond, bool load, bool byte, u32 rn, u32 rd,
+                                           u32 rm, u32 shift_amount = 0,
+                                           u32 shift_type = 0) {
+    return (cond << 28) | (0b01 << 26) | (1u << 25) |
+           (0u << 24) |                // P=0: post-indexed
+           (1u << 23) |                // U=1 (add offset)
+           (byte ? 1u : 0u) << 22 |    // B bit
+           (1u << 21) |                // T=1: force user-mode access
+           (load ? 1u : 0u) << 20 |    // L bit
+           (rn << 16) | (rd << 12) | (shift_amount << 7) |
+           (shift_type << 5) | (rm & 0xF);
+}
+
+inline u32 EncodeMCR(u32 cond, u32 coproc, u32 opcode1, u32 rd, u32 crn, u32 crm, u32 opcode2) {
+    return (cond << 28) | (0b1110 << 24) | (opcode1 << 21) | (0u << 20) |
+           (crn << 16) | (rd << 12) | (coproc << 8) | (opcode2 << 5) | (1u << 4) | crm;
+}
+
+inline u32 EncodeMRC(u32 cond, u32 coproc, u32 opcode1, u32 rd, u32 crn, u32 crm, u32 opcode2) {
+    return (cond << 28) | (0b1110 << 24) | (opcode1 << 21) | (1u << 20) |
+           (crn << 16) | (rd << 12) | (coproc << 8) | (opcode2 << 5) | (1u << 4) | crm;
+}
+
+inline u32 EncodeLDC(u32 cond, bool long_transfer, u32 coproc, u32 crd, u32 rn, s32 offset) {
+    bool add_offset = offset >= 0;
+    u32 magnitude = static_cast<u32>(add_offset ? offset : -offset);
+    return (cond << 28) | (0b110 << 25) | (1u << 24) | (add_offset ? 1u : 0u) << 23 |
+           (long_transfer ? 1u : 0u) << 22 | (0u << 21) | (1u << 20) |
+           (rn << 16) | (crd << 12) | (coproc << 8) | ((magnitude / 4) & 0xFF);
+}
+
+inline u32 EncodeSTC(u32 cond, bool long_transfer, u32 coproc, u32 crd, u32 rn, s32 offset) {
+    bool add_offset = offset >= 0;
+    u32 magnitude = static_cast<u32>(add_offset ? offset : -offset);
+    return (cond << 28) | (0b110 << 25) | (1u << 24) | (add_offset ? 1u : 0u) << 23 |
+           (long_transfer ? 1u : 0u) << 22 | (0u << 21) | (0u << 20) |
+           (rn << 16) | (crd << 12) | (coproc << 8) | ((magnitude / 4) & 0xFF);
+}
+
+inline u32 EncodeCDP(u32 cond, u32 coproc, u32 opcode1, u32 cd, u32 cn, u32 cm, u32 opcode2) {
+    return (cond << 28) | (0b1110 << 24) | (opcode1 << 20) | (cn << 16) |
+           (cd << 12) | (coproc << 8) | (opcode2 << 5) | (0u << 4) | cm;
+}
+
+inline u32 EncodeDataProcessingImmediate(u32 cond, u32 opcode, bool s, u32 rn, u32 rd,
+                                         u32 imm8, u32 rotate) {
+    return (cond << 28) | (0b00 << 26) | (1u << 25) | (opcode << 21) |
+           ((s ? 1u : 0u) << 20) | (rn << 16) | (rd << 12) |
+           (rotate << 8) | imm8;
+}
+
 }  // namespace cpu_test

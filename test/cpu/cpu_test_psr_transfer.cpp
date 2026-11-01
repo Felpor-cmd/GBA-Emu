@@ -310,6 +310,39 @@ TEST_CASE("Cpu::Step preserves reserved CPSR bits during MSR") {
     REQUIRE(cpu.GetCpsr() == 0xF00000DFu);
 }
 
+TEST_CASE("Cpu::Step preserves seeded reserved CPSR bits across every MSR field") {
+    std::vector<u8> rom(16, 0);
+    cpu_test::Put32(rom, 0, EncodeMsrRegister(0xE, false, 0x1, 0));
+    cpu_test::Put32(rom, 4, EncodeMsrRegister(0xE, false, 0x2, 0));
+    cpu_test::Put32(rom, 8, EncodeMsrRegister(0xE, false, 0x4, 0));
+    cpu_test::Put32(rom, 12, EncodeMsrRegister(0xE, false, 0x8, 0));
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    REQUIRE(cpu.SetCpsr(0x0FFFFF1Fu));
+    cpu.SetRegister(0, 0xFFFFFFFFu);
+
+    for (int i = 0; i < 4; ++i) {
+        cpu.Step();
+        REQUIRE((cpu.GetCpsr() & 0x0FFFFF00u) == 0x0FFFFF00u);
+    }
+}
+
+TEST_CASE("Cpu public PSR setters validate modes and SPSR availability") {
+    Bus bus(cpu_test::AsRom(0));
+    Cpu cpu(bus);
+
+    REQUIRE_FALSE(cpu.SetCpsr(0x00000000u));
+    REQUIRE(cpu.GetCpsr() == 0x1Fu);
+    REQUIRE_FALSE(cpu.SetSpsr(0x1Fu));
+    REQUIRE(cpu.SetCpsr(0x12u));
+    REQUIRE(cpu.SetSpsr(0x1Fu));
+    REQUIRE(cpu.SetCpsr(0x13u));
+    REQUIRE(cpu.SetSpsr(0xA000001Fu));
+    REQUIRE(cpu.SetCpsr(0x1Fu));
+    REQUIRE(cpu.SetCpsr(0x13u));
+    REQUIRE_FALSE(cpu.SetSpsr(0x00000000u));
+}
+
 TEST_CASE("Cpu::Step suppresses a condition-failed MRS") {
     Bus bus(cpu_test::AsRom(EncodeMrs(0x0, false, 0)));
     Cpu cpu(bus);
