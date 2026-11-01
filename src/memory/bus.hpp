@@ -14,10 +14,8 @@ constexpr u32 kSramSize    = 0x8000;   // 32 KB  static RAM
 
 constexpr u32 kIoSize      = 0x400;     // 1 KB   I/O Registers - PLACEHOLDER
 
-// Owns every RAM region plus the loaded ROM, and will become the single
-// place every other component (CPU, PPU, timers, DMA) goes through to touch
-// memory. Right now the read/write methods are stubs -- wiring them up to
-// the real address ranges is the next milestone after this compiles.
+// Owns RAM, I/O storage, BIOS data, and the loaded ROM. CPU and PPU access
+// memory through this shared address map.
 class Bus {
 public:
     explicit Bus(std::vector<u8> rom, std::vector<u8> bios = {});
@@ -35,6 +33,8 @@ public:
     u32 AccessCycles(u32 address, unsigned width, bool sequential) const;
     bool PrefetchEnabled() const { return (waitcnt_ & (1u << 14)) != 0; }
     u16 GetWaitcnt() const { return waitcnt_; }
+    void SetVideoTiming(u16 scanline, bool hblank);
+    void ResetMemory(u32 flags);
 
 private:
     std::array<u8, kBiosSize>    bios_{};

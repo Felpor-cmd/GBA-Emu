@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install SDL2 headers
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
       - name: Verify pinned opcode ROMs
         run: sha256sum --check test/fixtures/opcode/jsmolka/SHA256SUMS
       - name: Configure
@@ -25,7 +27,7 @@ jobs:
       - name: Verify assembled fixtures
         run: |
           sudo apt-get update
-          sudo apt-get install -y binutils-arm-none-eabi
+          sudo apt-get install -y binutils-arm-none-eabi libsdl2-dev
           scripts/regenerate_arm_fixtures.sh
           git diff --exit-code -- test/fixtures/arm
       - name: Build pinned mGBA 0.10.5

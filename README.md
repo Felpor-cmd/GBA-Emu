@@ -1,28 +1,37 @@
-# gba-emu (starter scaffold)
+# gba-emu
 
 A Game Boy Advance emulator built from scratch, one subsystem at a time.
 
 ## Build
 
-    mkdir build && cd build
-    cmake ..
-    cmake --build .
+    cmake -S . -B build
+    cmake --build build
+
+SDL2 development headers are required.
 
 ## Run
 
-    ./gba_emu path/to/rom.gba
+    build/gba_emu path/to/rom.gba
 
-Right now this just loads the ROM into memory and resets the CPU register
-file -- `Cpu::Step()` and the real `Bus` read/write routing are both stubs.
-That's intentional: get this compiling and running first, then fill in one
-piece at a time.
+Press Escape to close the window. To see the pixel pipeline without a ROM:
+
+    build/gba_emu --test-pattern
+
+The test pattern is a solid red Mode 3 framebuffer. For an automated display
+smoke test, pass `--frames 2`; SDL's dummy video driver can run it headlessly.
+
+The SDL loop runs at the GBA frame period. The PPU renders bitmap modes 3–5,
+tiled backgrounds in modes 0–2, and regular and affine sprites with layer
+priority. VCOUNT, HBlank, and VBlank status advance with CPU cycles. Rendering
+currently samples memory once per frame, so writes during a scanline do not
+produce raster effects. Interrupt delivery, DMA, and audio are still to come.
 
 ## Status
 
 - [x] Project skeleton, ROM loading
-- [ ] CPU core (ARM + Thumb instruction sets)
-- [ ] Memory bus (real address region routing)
-- [ ] PPU (video)
+- [x] CPU core (ARM + Thumb instruction sets)
+- [x] Memory bus (address region routing)
+- [x] PPU (base bitmap, tile, affine, and OBJ rendering)
 - [ ] Timers, DMA, interrupts
 - [ ] Keypad input
 - [ ] Sound

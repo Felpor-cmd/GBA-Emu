@@ -291,24 +291,24 @@ moving to the next box.
 You'll want this before or alongside the PPU — testing pixels is much easier
 when you can actually look at them.
 
-- [ ] Add a windowing/graphics library to the build (SDL2 is the most common choice for this)
-- [ ] Open a blank window
-- [ ] Draw one solid test color to the window, proving the pixel pipeline works end to end
-- [ ] Add a fixed-timestep main loop (so the emulator doesn't run at uncapped, unpredictable speed)
+- [x] Add SDL2 to the build
+- [x] Open a window
+- [x] Draw one solid test color to the window, proving the pixel pipeline works end to end
+- [x] Add a fixed-timestep main loop (so the emulator doesn't run at uncapped, unpredictable speed)
 
 ---
 
 ## Phase 4 — PPU (Video)
 
-- [ ] Bitmap mode 3 (simplest possible: one full-screen 16-bit-color framebuffer)
-- [ ] Bitmap mode 4 (paletted framebuffer with page flipping)
-- [ ] Bitmap mode 5 (small paletted framebuffer)
-- [ ] Tile-based background mode 0 (regular tiled backgrounds, up to 4 layers)
-- [ ] Tile-based background mode 1
-- [ ] Tile-based background mode 2 (affine/rotated backgrounds)
-- [ ] Sprite (OBJ) rendering — regular sprites
-- [ ] Sprite (OBJ) rendering — affine (rotated/scaled) sprites
-- [ ] Priority and layering between backgrounds and sprites
+- [x] Bitmap mode 3 (one full-screen 16-bit-color framebuffer)
+- [x] Bitmap mode 4 (paletted framebuffer with page flipping)
+- [x] Bitmap mode 5 (160×128 16-bit-color framebuffer with page flipping, per GBATEK)
+- [x] Tile-based background mode 0 (regular tiled backgrounds, up to 4 layers)
+- [x] Tile-based background mode 1
+- [x] Tile-based background mode 2 (affine/rotated backgrounds)
+- [x] Sprite (OBJ) rendering — regular sprites
+- [x] Sprite (OBJ) rendering — affine (rotated/scaled) sprites
+- [x] Priority and layering between backgrounds and sprites
 - [ ] *(optional polish)* Mosaic effect
 - [ ] *(optional polish)* Alpha blending
 - [ ] *(optional polish)* Windowing (the GBA's clipping-region feature, not an OS window)

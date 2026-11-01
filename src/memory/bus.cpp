@@ -7,11 +7,6 @@ Bus::Bus(std::vector<u8> rom, std::vector<u8> bios) : rom_(std::move(rom)) {
 }
 
 u8 Bus::Read8(u32 address) const {
-    // TODO: switch on the top bits of `address` to route to BIOS, EWRAM,
-    // IWRAM, I/O registers, palette, VRAM, OAM, ROM, or SRAM.
-    // Address ranges: https://problemkaputt.de/gbatek.htm#gbamemorymap
-    // For now, just return 0 for all reads.
-
     switch (address >> 24){
         case 0x00: return bios_[address & (kBiosSize - 1)];
 
@@ -36,7 +31,7 @@ u8 Bus::Read8(u32 address) const {
 
         case 0x0E: return sram_[address & (kSramSize - 1)];
 
-        default: return 0; // TODO: handle other regions ( ROM, SRAM )
+        default: return 0;
     }
 }
 
@@ -51,9 +46,6 @@ u32 Bus::Read32(u32 address) const {
 }
 
 void Bus::Write8(u32 address, u8 value) {
-    // TODO: same region routing as Read8, plus respect read-only regions
-    // (BIOS, ROM) which should ignore writes.
-
     switch (address >> 24){
         case 0x00: break; // BIOS is read-only, ignore writes
 
@@ -80,7 +72,7 @@ void Bus::Write8(u32 address, u8 value) {
         
         case 0x0E: sram_[address & (kSramSize - 1)] = value; break;
 
-        default: break; // TODO: handle other regions (BIOS, ROM, SRAM, I/O registers)
+        default: break;
     }
 }
 
@@ -92,6 +84,25 @@ void Bus::Write16(u32 address, u16 value) {
 void Bus::Write32(u32 address, u32 value) {
     Write16(address, static_cast<u16>(value & 0xFFFF));
     Write16(address + 2, static_cast<u16>((value >> 16) & 0xFFFF));
+}
+
+void Bus::SetVideoTiming(u16 scanline, bool hblank) {
+    const u16 control = Read16(0x04000004u);
+    const u16 status = static_cast<u16>((control & ~7u) |
+        (scanline >= 160 && scanline < 227 ? 1u : 0u) | (hblank ? 2u : 0u) |
+        (scanline == (control >> 8) ? 4u : 0u));
+    io_[4] = static_cast<u8>(status);
+    io_[5] = static_cast<u8>(status >> 8);
+    io_[6] = static_cast<u8>(scanline);
+    io_[7] = 0;
+}
+
+void Bus::ResetMemory(u32 flags) {
+    if (flags & (1u << 0)) ewram_.fill(0);
+    if (flags & (1u << 1)) iwram_.fill(0);
+    if (flags & (1u << 2)) palette_.fill(0);
+    if (flags & (1u << 3)) vram_.fill(0);
+    if (flags & (1u << 4)) oam_.fill(0);
 }
 
 u32 Bus::AccessCycles(u32 address, unsigned width, bool sequential) const {

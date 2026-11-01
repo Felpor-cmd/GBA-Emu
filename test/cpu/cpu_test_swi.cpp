@@ -27,6 +27,24 @@ TEST_CASE("ARM SWI enters Supervisor mode and returns with MOVS pc, lr") {
     REQUIRE(cpu.GetRegister(15) == 0x08000004u);
 }
 
+TEST_CASE("Thumb RegisterRamReset clears selected RAM and resumes Thumb code") {
+    Bus bus(cpu_test::AsRom(0xDF01u));
+    Cpu cpu(bus);
+    REQUIRE(cpu.SetCpsr(0x3Fu));
+    cpu.SetRegister(0, 1u << 0);
+    cpu.SetRegister(1, 0x12345678u);
+    bus.Write32(0x02000000u, 0xDEADBEEFu);
+    bus.Write32(0x03000000u, 0xCAFEBABEu);
+
+    cpu.Step();
+
+    REQUIRE(bus.Read32(0x02000000u) == 0);
+    REQUIRE(bus.Read32(0x03000000u) == 0xCAFEBABEu);
+    REQUIRE(cpu.GetRegister(1) == 0x12345678u);
+    REQUIRE((cpu.GetCpsr() & kThumbFlag) != 0);
+    REQUIRE(cpu.GetRegister(15) == 0x08000002u);
+}
+
 TEST_CASE("Conditional ARM SWI has no exception side effects when condition fails") {
     Bus bus(cpu_test::AsRom(0x0F000000u));
     Cpu cpu(bus);

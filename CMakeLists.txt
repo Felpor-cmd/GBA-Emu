@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 project(gba_emu LANGUAGES CXX)
 
+find_package(SDL2 REQUIRED)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -18,10 +20,12 @@ add_executable(gba_emu
     src/cpu/cpu_swi.cpp
     src/cpu/cpu_thumb.cpp
     src/cpu/cpu_exception.cpp
+    src/ppu/ppu.cpp
     src/memory/bus.cpp
 )
 
 target_include_directories(gba_emu PRIVATE src)
+target_link_libraries(gba_emu PRIVATE SDL2::SDL2)
 target_compile_options(gba_emu PRIVATE -Wall -Wextra)
 
 include(FetchContent)
@@ -66,6 +70,8 @@ add_executable(gba_tests
     test/cpu/cpu_test_memory_edge_cases.cpp
     test/cpu/cpu_test_timing_and_decode.cpp
     test/cpu/cpu_test_arm_fixtures.cpp
+    test/ppu/ppu_test_bitmap.cpp
+    test/ppu/ppu_test_tiles.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp
@@ -74,6 +80,7 @@ add_executable(gba_tests
     src/cpu/cpu_swi.cpp
     src/cpu/cpu_thumb.cpp
     src/cpu/cpu_exception.cpp
+    src/ppu/ppu.cpp
     src/memory/bus.cpp
 )
 target_include_directories(gba_tests PRIVATE src)

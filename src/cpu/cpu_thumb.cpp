@@ -354,7 +354,7 @@ bool Cpu::ExecuteThumb(u16 insn, u32 address) {
     }
     if ((insn & 0xF000u) == 0xD000u) {
         const u32 condition = (insn >> 8) & 15u;
-        if (condition == 15u) { EnterSoftwareInterruptException(address); return true; }
+        if (condition == 15u) { ExecuteSoftwareInterrupt(insn, address); return true; }
         if (condition == 14u) { EnterUndefinedInstructionException(address); return true; }
         if (!CheckCondition(condition, cpsr_)) return false;
         const s32 displacement = static_cast<s32>(static_cast<s8>(insn & 0xFFu)) * 2;
