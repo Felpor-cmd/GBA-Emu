@@ -53,6 +53,7 @@ add_executable(gba_tests
     test/bus/bus_test_rom_read_all_three_mirrored_address_windows_bounds_checked.cpp
     test/bus/bus_test_sram_read_write.cpp
     test/bus/bus_test_dma.cpp
+    test/bus/bus_test_timers.cpp
     test/cpu/cpu_test_condition_code_evaluation.cpp
     test/cpu/cpu_test_fetch_decode_skeleton.cpp
     test/cpu/cpu_test_branch_fetch_width.cpp

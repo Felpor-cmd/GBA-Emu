@@ -34,8 +34,8 @@ priority. VCOUNT, HBlank, and VBlank status advance with CPU cycles. Rendering
 currently samples memory once per frame, so writes during a scanline do not
 produce raster effects. BIOS-free boot supports the reset, copying, division,
 affine setup, and interrupt wait services needed by Zelda: The Minish Cap.
-Video IRQs, immediate/VBlank/HBlank DMA, alpha blending, brightness, and WIN0/1
-clipping are implemented. Timers, audio, and keypad controls remain pending.
+Timers, video IRQs, immediate/VBlank/HBlank DMA, alpha blending, brightness,
+and WIN0/1 clipping are implemented. Audio and keypad controls remain pending.
 
 Local ROM checks against pinned mGBA keep per-game logs and temporary captures in `/tmp/gba-emu/<ROM name>/`. Successful checks remove their captures and retain logs. See [docs/zelda-boot.md](docs/zelda-boot.md).
 
@@ -46,7 +46,8 @@ Local ROM checks against pinned mGBA keep per-game logs and temporary captures i
 - [x] Memory bus (address region routing)
 - [x] PPU (base bitmap, tile, affine, and OBJ rendering)
 - [x] Video interrupts and immediate/VBlank/HBlank DMA
-- [ ] Timers and sound FIFO DMA
+- [x] Timers (prescalers, overflow IRQs, and cascading)
+- [ ] Sound FIFO DMA
 - [ ] Keypad input
 - [ ] Sound
 

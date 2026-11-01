@@ -36,6 +36,7 @@ public:
     void SetVideoTiming(u16 scanline, bool hblank);
     void ResetMemory(u32 flags);
     u32 RunDma(unsigned timing);
+    void AdvanceTimers(u32 cycles);
     void RequestInterrupt(u16 bits);
     bool InterruptPending() const { return (Read16(0x04000200) & Read16(0x04000202)) != 0; }
     bool IrqEnabled() const { return (Read16(0x04000208) & 1u) && InterruptPending(); }
@@ -55,4 +56,12 @@ private:
     bool has_bios_ = false;
     struct Dma { u32 source = 0, destination = 0, reload = 0; bool enabled = false; };
     std::array<Dma, 4> dma_{};
+    struct Timer {
+        u16 reload = 0;
+        u16 counter = 0;
+        u8 control = 0;
+        u16 prescaler_phase = 0;
+    };
+    std::array<Timer, 4> timers_{};
+    u64 IncrementTimer(unsigned timer, u64 ticks);
 };

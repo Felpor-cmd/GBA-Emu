@@ -21,6 +21,16 @@ u8 Bus::Read8(u32 address) const {
         case 0x00: return bios_[address & (kBiosSize - 1)];
 
         case 0x04:
+            if (address >= 0x04000100u && address < 0x04000110u) {
+                const u32 timer_offset = address - 0x04000100u;
+                const auto& timer = timers_[timer_offset / 4];
+                switch (timer_offset & 3u) {
+                    case 0: return static_cast<u8>(timer.counter);
+                    case 1: return static_cast<u8>(timer.counter >> 8);
+                    case 2: return timer.control;
+                    default: return 0;
+                }
+            }
             if (address == 0x04000204) return static_cast<u8>(waitcnt_);
             if (address == 0x04000205) return static_cast<u8>(waitcnt_ >> 8);
             return io_[address & (kIoSize -1)];
@@ -60,6 +70,33 @@ void Bus::Write8(u32 address, u8 value) {
         case 0x00: break; // BIOS is read-only, ignore writes
 
         case 0x04:
+            if (address >= 0x04000100u && address < 0x04000110u) {
+                const u32 timer_offset = address - 0x04000100u;
+                const unsigned timer_index = timer_offset / 4;
+                auto& timer = timers_[timer_index];
+                switch (timer_offset & 3u) {
+                    case 0:
+                        timer.reload = static_cast<u16>((timer.reload & 0xFF00u) | value);
+                        break;
+                    case 1:
+                        timer.reload = static_cast<u16>((timer.reload & 0x00FFu) |
+                                                        (static_cast<u16>(value) << 8));
+                        break;
+                    case 2: {
+                        const u8 allowed_bits = timer_index == 0 ? 0xC3u : 0xC7u;
+                        const u8 new_control = value & allowed_bits;
+                        const bool was_enabled = (timer.control & 0x80u) != 0;
+                        const bool enabled = (new_control & 0x80u) != 0;
+                        if (!was_enabled && enabled) timer.counter = timer.reload;
+                        if (was_enabled != enabled || ((timer.control ^ new_control) & 0x07u))
+                            timer.prescaler_phase = 0;
+                        timer.control = new_control;
+                        break;
+                    }
+                    default: break;
+                }
+                break;
+            }
             if (address == 0x04000202u || address == 0x04000203u) {
                 io_[address & 0x3FFu] &= static_cast<u8>(~value);
                 break;
@@ -144,6 +181,46 @@ u32 Bus::RunDma(unsigned timing) {
     return cycles;
 }
 
+u64 Bus::IncrementTimer(unsigned timer_index, u64 ticks) {
+    if (!ticks) return 0;
+    auto& timer = timers_[timer_index];
+    const u64 clocks_to_overflow = 0x10000u - timer.counter;
+    if (ticks < clocks_to_overflow) {
+        timer.counter = static_cast<u16>(timer.counter + ticks);
+        return 0;
+    }
+
+    const u64 ticks_after_first_overflow = ticks - clocks_to_overflow;
+    const u64 period = 0x10000u - timer.reload;
+    const u64 overflows = 1 + ticks_after_first_overflow / period;
+    timer.counter = static_cast<u16>(timer.reload + ticks_after_first_overflow % period);
+    return overflows;
+}
+
+void Bus::AdvanceTimers(u32 cycles) {
+    constexpr u32 prescalers[] = {1, 64, 256, 1024};
+    std::array<u64, 4> overflows{};
+    for (unsigned index = 0; index < timers_.size(); ++index) {
+        auto& timer = timers_[index];
+        if (!(timer.control & 0x80u)) continue;
+
+        const bool cascade = index != 0 && (timer.control & 0x04u);
+        u64 ticks = 0;
+        if (cascade) {
+            ticks = overflows[index - 1];
+        } else {
+            const u32 divisor = prescalers[timer.control & 3u];
+            const u64 elapsed = static_cast<u64>(timer.prescaler_phase) + cycles;
+            ticks = elapsed / divisor;
+            timer.prescaler_phase = static_cast<u16>(elapsed % divisor);
+        }
+
+        overflows[index] = IncrementTimer(index, ticks);
+        if (overflows[index] && (timer.control & 0x40u))
+            RequestInterrupt(static_cast<u16>(1u << (3 + index)));
+    }
+}
+
 void Bus::Write16(u32 address, u16 value) {
     Write8(address, static_cast<u8>(value & 0xFF));
     Write8(address + 1, static_cast<u8>((value >> 8) & 0xFF));
@@ -187,6 +264,7 @@ void Bus::ResetMemory(u32 flags) {
         for (u32 offset : {0x20u, 0x26u, 0x30u, 0x36u}) Write16(0x04000000u + offset, 0x100);
         for (u32 offset = 0xB0; offset < 0xE0; offset += 2) Write16(0x04000000u + offset, 0);
         for (u32 offset = 0x100; offset < 0x110; offset += 2) Write16(0x04000000u + offset, 0);
+        timers_.fill(Timer{});
         Write16(0x04000200u, 0);
         Write16(0x04000202u, 0xFFFF);
         Write16(0x04000204u, 0);

@@ -19,3 +19,13 @@ TEST_CASE("CPU ROM writes reach the frame buffer through the shared frame coordi
     REQUIRE(emulator.Frames() == 2);
     REQUIRE(emulator.Pixels()[0] == 0xFFFF0000);
 }
+
+TEST_CASE("Timers advance with frame hardware clocks while the CPU is skipped") {
+    Emulator emulator({}, false);
+    emulator.Memory().Write16(0x04000100, 0);
+    emulator.Memory().Write16(0x04000102, 0x0083); // Enable, divide by 1024.
+
+    emulator.RunFrame();
+
+    REQUIRE(emulator.Memory().Read16(0x04000100) == 274);
+}

@@ -18,6 +18,7 @@ void Emulator::RunFrame() {
         u32 remaining = run_cpu_ ? cpu_.Step() + bus_.RunDma(0) : ppu_.CyclesToEvent();
         while (remaining) {
             const u32 elapsed = std::min(remaining, ppu_.CyclesToEvent());
+            bus_.AdvanceTimers(elapsed);
             const u32 events = ppu_.Advance(elapsed);
             remaining -= elapsed;
             cycle_debt_ -= elapsed;

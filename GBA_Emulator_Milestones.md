@@ -327,9 +327,9 @@ when you can actually look at them.
 
 ## Phase 6 — Timers
 
-- [ ] One free-running, up-counting timer register
-- [ ] Timer overflow triggering an interrupt
-- [ ] Timer cascading (one timer's overflow feeding the next)
+- [x] One free-running, up-counting timer register (all four timers implemented)
+- [x] Timer overflow triggering an interrupt
+- [x] Timer cascading (one timer's overflow feeding the next)
 
 ---
 
