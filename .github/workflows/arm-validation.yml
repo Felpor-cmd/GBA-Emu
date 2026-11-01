@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify pinned opcode ROMs
+        run: sha256sum --check test/fixtures/opcode/jsmolka/SHA256SUMS
       - name: Configure
         run: cmake -S . -B build -G Ninja
       - name: Build

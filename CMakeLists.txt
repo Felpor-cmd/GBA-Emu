@@ -85,6 +85,18 @@ include(CTest)
 include(Catch)
 catch_discover_tests(gba_tests)
 
+add_executable(opcode_rom_runner
+    test/reference/opcode_rom_runner.cpp
+    src/cpu/cpu.cpp src/cpu/cpu_branch.cpp src/cpu/cpu_data_processing.cpp
+    src/cpu/cpu_memory.cpp src/cpu/cpu_psr.cpp src/cpu/cpu_swi.cpp
+    src/cpu/cpu_thumb.cpp src/cpu/cpu_exception.cpp src/memory/bus.cpp)
+target_include_directories(opcode_rom_runner PRIVATE src)
+target_compile_options(opcode_rom_runner PRIVATE -Wall -Wextra)
+add_test(NAME opcode_arm COMMAND opcode_rom_runner
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/opcode/jsmolka/arm.gba" 0x08001D4C 12 8824)
+add_test(NAME opcode_thumb COMMAND opcode_rom_runner
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/opcode/jsmolka/thumb.gba" 0x08000934 7 3680)
+
 if(DEFINED MGBA_ROOT)
     find_path(MGBA_INCLUDE_DIR mgba/core/core.h PATHS "${MGBA_ROOT}/include" NO_DEFAULT_PATH REQUIRED)
     find_library(MGBA_LIBRARY mgba PATHS "${MGBA_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)

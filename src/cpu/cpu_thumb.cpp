@@ -132,7 +132,7 @@ bool Cpu::ExecuteThumb(u16 insn, u32 address) {
     };
     auto load_half = [this](u32 effective) {
         const u32 half = ReadData16(effective & ~1u);
-        return (effective & 1u) ? ((half >> 8) | ((half << 8) & 0xFFFFu)) : half;
+        return (effective & 1u) ? cpu_detail::RotateRight(half, 8) : half;
     };
     auto store_word = [this](u32 effective, u32 value) {
         WriteData32(effective & ~3u, value);

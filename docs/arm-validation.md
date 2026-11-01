@@ -51,3 +51,21 @@ Clock expectations come from the [ARM7TDMI-S cycle tables](https://documentation
 and [GBATEK's WAITCNT/Game Pak timing rules](https://mgba-emu.github.io/gbatek/).
 Reference traces validate architectural state; they are not treated as clock
 oracles.
+
+## External opcode ROMs
+
+CTest runs the ARM and Thumb opcode ROMs from `jsmolka/gba-tests` at pinned
+upstream commit `a7113b67e63f83a9b321696ddd7042ccfad6c881`. The original MIT
+license and SHA256 checksums are kept beside the ROMs in
+`test/fixtures/opcode/jsmolka/`. The runner executes the suite's original CPU
+code up to its `eval` loop, validates the loop signature, then reads the
+upstream result register (`r12` for ARM, `r7` for Thumb). A zero result means
+the full suite passed; nonzero values identify the first failed test. These
+ROM tests are registered as `opcode_arm` and `opcode_thumb` in CTest and run in
+the regular CI job. Run them locally with
+`ctest --test-dir build -R '^opcode_(arm|thumb)$' --output-on-failure`.
+
+The suite caught ARM7TDMI behavior gaps in register-specified shifts, PC reads
+and stores, long multiply encoding, odd halfword loads, overlapping writeback,
+unaligned SWP, and unaligned block transfers. Resolve upstream expectations
+against GBATEK when descriptions disagree.

@@ -22,7 +22,7 @@ ArmKind ClassifyArm(u32 insn) {
         (insn & 0x0FFF0FF0u) == 0x016F0F10u ||
         (insn & 0x0FF000F0u) == 0x01200070u) return ArmKind::Undefined;
     if ((insn & 0x0FC000F0u) == 0x00000090u) return ArmKind::Multiply;
-    if ((insn & 0x0F4000F0u) == 0x00400090u) return ArmKind::LongMultiply;
+    if ((insn & 0x0F8000F0u) == 0x00800090u) return ArmKind::LongMultiply;
     if ((insn & 0x0FBF0FFFu) == 0x010F0000u) return ArmKind::Mrs;
     if ((insn & 0x0FB0FFF0u) == 0x0120F000u) return ArmKind::MsrRegister;
     if ((insn & 0x0FB0F000u) == 0x0320F000u) return ArmKind::MsrImmediate;
@@ -229,7 +229,7 @@ u32 Cpu::Step() {
         const bool signed_medium = static_cast<s32>(rs) >= -32768 && static_cast<s32>(rs) <= 32767;
         const bool signed_long = static_cast<s32>(rs) >= -8388608 && static_cast<s32>(rs) <= 8388607;
         const bool unsigned_long = kind == ArmKind::LongMultiply &&
-                                   (instruction & (1u << 23)) == 0;
+                                   (instruction & (1u << 22)) == 0;
         const u32 m = unsigned_long
             ? (rs <= 0xFFu ? 1 : rs <= 0xFFFFu ? 2 : rs <= 0xFFFFFFu ? 3 : 4)
             : (signed_short ? 1 : signed_medium ? 2 : signed_long ? 3 : 4);

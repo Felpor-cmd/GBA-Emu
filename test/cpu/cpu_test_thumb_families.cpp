@@ -123,7 +123,7 @@ TEST_CASE("Thumb PC relative literal aligns PC at halfword offset two") {
 
 TEST_CASE("Thumb register offset transfers handle signed and unaligned data") {
     for (auto [op, expected] : {std::pair{3u, 0xFFFFFF80u},
-                                std::pair{5u, 0x00008080u},
+                                std::pair{5u, 0x80000080u},
                                 std::pair{6u, 0x00000080u},
                                 std::pair{7u, 0xFFFFFF80u}}) {
         Bus bus(Rom({static_cast<u16>(0x5000u | (op << 9) | (2u << 6) | (1u << 3))}));

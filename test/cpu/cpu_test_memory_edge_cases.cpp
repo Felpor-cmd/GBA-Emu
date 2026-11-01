@@ -58,7 +58,7 @@ TEST_CASE("ARM STR unaligned word store writes to aligned address") {
     REQUIRE(bus.Read32(0x02000004) == 0);
 }
 
-TEST_CASE("ARM LDRH at odd address loads from aligned address") {
+TEST_CASE("ARM LDRH at odd address rotates the zero-extended halfword") {
     Bus bus(cpu_test::AsRom(cpu_test::EncodeHalfwordDataTransfer(0xE, true, false, true, 1, 2, 1)));
     Cpu cpu(bus);
     cpu.SetRegister(1, 0x02000000);
@@ -66,7 +66,7 @@ TEST_CASE("ARM LDRH at odd address loads from aligned address") {
 
     cpu.Step();
 
-    REQUIRE(cpu.GetRegister(2) == 0x0000ABCD);
+    REQUIRE(cpu.GetRegister(2) == 0xCD0000AB);
 }
 
 TEST_CASE("ARM STRH at odd address stores to aligned address") {
@@ -81,7 +81,7 @@ TEST_CASE("ARM STRH at odd address stores to aligned address") {
     REQUIRE(bus.Read16(0x02000002) == 0);
 }
 
-TEST_CASE("ARM LDRSH at odd address loads from aligned address and sign-extends") {
+TEST_CASE("ARM LDRSH at odd address sign-extends the addressed byte") {
     Bus bus(cpu_test::AsRom(cpu_test::EncodeHalfwordDataTransfer(0xE, true, true, true, 1, 2, 1)));
     Cpu cpu(bus);
     cpu.SetRegister(1, 0x02000000);
@@ -89,7 +89,7 @@ TEST_CASE("ARM LDRSH at odd address loads from aligned address and sign-extends"
 
     cpu.Step();
 
-    REQUIRE(cpu.GetRegister(2) == 0xFFFF8000);
+    REQUIRE(cpu.GetRegister(2) == 0xFFFFFF80);
 }
 
 TEST_CASE("ARM LDRB at odd address works normally") {
@@ -123,6 +123,17 @@ TEST_CASE("ARM LDR with Rn == Rd and writeback loads value then updates base") {
     cpu.Step();
 
     REQUIRE(cpu.GetRegister(1) == 0xDEADBEEF);
+}
+
+TEST_CASE("ARM LDRH with Rn equal to Rd keeps the loaded value") {
+    Bus bus(cpu_test::AsRom(cpu_test::EncodeHalfwordDataTransfer(0xE, true, false, true, 1, 1, 4, true, true)));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 0x02000000);
+    bus.Write16(0x02000004, 0x1234);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(1) == 0x1234);
 }
 
 TEST_CASE("ARM STR with Rn == Rd and writeback stores old value") {
@@ -185,6 +196,16 @@ TEST_CASE("ARM STR with PC as base register") {
     REQUIRE(cpu.GetRegister(15) == 0x08000004);
 }
 
+TEST_CASE("ARM STR stores instruction address plus twelve for PC") {
+    Bus bus(cpu_test::AsRom(cpu_test::EncodeSingleDataTransfer(0xE, false, false, 1, 15, 0)));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 0x02000000);
+
+    cpu.Step();
+
+    REQUIRE(bus.Read32(0x02000000) == 0x0800000Cu);
+}
+
 TEST_CASE("ARM LDR with PC as source register (Rd=15)") {
     std::vector<u8> rom(0x1000, 0);
     cpu_test::Put32(rom, 0, cpu_test::EncodeSingleDataTransfer(0xE, true, false, 15, 15, 4));
@@ -210,7 +231,7 @@ TEST_CASE("ARM LDR with PC as offset register") {
     REQUIRE(cpu.GetRegister(2) == 0x12345678);
 }
 
-TEST_CASE("ARM LDM unaligned word loads rotate") {
+TEST_CASE("ARM LDM aligns an unaligned base before transfer") {
     Bus bus(cpu_test::AsRom(cpu_test::EncodeBlockDataTransfer(0xE, true, 13, (1u << 0), true, true, false, false)));
     Cpu cpu(bus);
     cpu.SetRegister(13, 0x02000001);  // unaligned base
@@ -218,7 +239,7 @@ TEST_CASE("ARM LDM unaligned word loads rotate") {
 
     cpu.Step();
 
-    REQUIRE(cpu.GetRegister(0) == 0x44112233);
+    REQUIRE(cpu.GetRegister(0) == 0x11223344);
 }
 
 TEST_CASE("ARM LDRSB at odd address works normally") {

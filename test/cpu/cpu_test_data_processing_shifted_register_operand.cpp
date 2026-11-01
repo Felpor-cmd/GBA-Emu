@@ -45,3 +45,27 @@ TEST_CASE("Cpu::Step applies ROR to a register operand") {
 
     REQUIRE(cpu.GetRegister(0) == 0x18000000);
 }
+
+TEST_CASE("ARM register-specified zero shift preserves the operand and carry") {
+    for (u32 type = 0; type < 4; ++type) {
+        const u32 instruction = 0xE1B00110u | (type << 5); // MOVS r0,r0,<shift> r1
+        Bus bus(cpu_test::AsRom(instruction));
+        Cpu cpu(bus);
+        cpu.SetCpsr(0x1Fu | (1u << 29));
+        cpu.SetRegister(0, 1);
+        cpu.SetRegister(1, 0);
+        cpu.Step();
+        REQUIRE(cpu.GetRegister(0) == 1u);
+        REQUIRE((cpu.GetCpsr() & (1u << 29)) != 0);
+    }
+}
+
+TEST_CASE("ARM register-specified shift reads PC plus twelve") {
+    for (u32 instruction : {0xE1A0001Fu, 0xE08F0010u}) {
+        Bus bus(cpu_test::AsRom(instruction));
+        Cpu cpu(bus);
+        cpu.SetRegister(0, 0);
+        cpu.Step();
+        REQUIRE(cpu.GetRegister(0) == 0x0800000Cu);
+    }
+}

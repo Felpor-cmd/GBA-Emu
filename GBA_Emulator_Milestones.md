@@ -278,11 +278,11 @@ moving to the next box.
 
 ### 2d. Validate against test ROMs
 
-- [ ] Get the ARM opcode test suite running at all (even if it reports failures)
+- [x] Get the ARM opcode test suite running at all (even if it reports failures)
 - [x] Run basic ARM tests via Catch2 test suite — all current CTest cases pass
-- [ ] Get the full ARM suite passing — pending register shift and other gaps
-- [ ] Get the Thumb opcode test suite running — only "Move shifted register" works currently
-- [ ] Get the full Thumb suite passing — pending full Thumb implementation
+- [x] Get the full ARM suite passing — jsmolka ARM opcode ROM
+- [x] Get the Thumb opcode test suite running — jsmolka Thumb opcode ROM
+- [x] Get the full Thumb suite passing — jsmolka Thumb opcode ROM
 
 ---
 

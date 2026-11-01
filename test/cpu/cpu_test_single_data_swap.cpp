@@ -17,6 +17,19 @@ TEST_CASE("ARM SWP swaps a word atomically") {
     REQUIRE(cpu.GetRegister(1) == 0x02000000);
 }
 
+TEST_CASE("ARM SWP at an odd address rotates the loaded word and aligns the store") {
+    Bus bus(cpu_test::AsRom(cpu_test::EncodeSingleDataSwap(0xE, false, 1, 0, 2)));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 0x02000001);
+    cpu.SetRegister(2, 0xAABBCCDD);
+    bus.Write32(0x02000000, 0x11223344);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(0) == 0x44112233);
+    REQUIRE(bus.Read32(0x02000000) == 0xAABBCCDD);
+}
+
 TEST_CASE("ARM SWPB swaps a byte atomically") {
     Bus bus(cpu_test::AsRom(cpu_test::EncodeSingleDataSwap(0xE, true, 1, 0, 2)));
     Cpu cpu(bus);
