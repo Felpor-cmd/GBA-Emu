@@ -1,118 +1,109 @@
 #include <SDL2/SDL.h>
-
 #include <chrono>
-#include <cstdint>
+#include <algorithm>
 #include <cstdio>
-#include <cstdlib>
 #include <fstream>
-#include <string_view>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <stdexcept>
 #include <vector>
-
-#include "cpu/cpu.hpp"
-#include "memory/bus.hpp"
-#include "ppu/ppu.hpp"
+#include "emulator.hpp"
 
 namespace {
 std::vector<u8> LoadRom(const char* path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if (!file) return {};
-    const auto size = file.tellg();
-    if (size <= 0) return {};
-    file.seekg(0, std::ios::beg);
-    std::vector<u8> data(static_cast<std::size_t>(size));
-    if (!file.read(reinterpret_cast<char*>(data.data()), size)) return {};
+    if (!file || file.tellg() <= 0) throw std::runtime_error("Cannot read ROM");
+    std::vector<u8> data(static_cast<std::size_t>(file.tellg()));
+    file.seekg(0);
+    if (!file.read(reinterpret_cast<char*>(data.data()), data.size()))
+        throw std::runtime_error("Cannot read ROM");
     return data;
 }
-
-void FillTestColor(Bus& bus) {
-    bus.Write16(0x04000000u, 0x0403u); // Mode 3, BG2 enabled.
-    for (u32 pixel = 0; pixel < Ppu::kWidth * Ppu::kHeight; ++pixel)
-        bus.Write16(0x06000000u + pixel * 2, 0x001Fu); // Red.
 }
-} // namespace
-
 int main(int argc, char** argv) {
-    if (argc < 2 || argc > 4 ||
-        (argc > 2 && (argc != 4 || std::string_view(argv[2]) != "--frames"))) {
-        std::fprintf(stderr, "Usage: %s <rom.gba|--test-pattern> [--frames N]\n", argv[0]);
-        return 1;
-    }
-    const bool test_pattern = std::string_view(argv[1]) == "--test-pattern";
-    const long max_frames = argc == 4 ? std::strtol(argv[3], nullptr, 10) : 0;
-    if (argc == 4 && max_frames <= 0) {
-        std::fprintf(stderr, "Frame count must be positive.\n");
-        return 1;
-    }
-    auto rom = test_pattern ? std::vector<u8>{} : LoadRom(argv[1]);
-    if (!test_pattern && rom.empty()) {
-        std::fprintf(stderr, "Could not load ROM: %s\n", argv[1]);
-        return 1;
-    }
-    Bus bus(std::move(rom));
-    Cpu cpu(bus);
-    if (test_pattern) FillTestColor(bus);
-    Ppu ppu(bus);
-
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
-        return 1;
-    }
-    SDL_Window* window = SDL_CreateWindow("GBA Emulator", SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED, Ppu::kWidth * 3, Ppu::kHeight * 3, SDL_WINDOW_SHOWN);
-    SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED) : nullptr;
-    if (!renderer && window) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-    SDL_Texture* texture = renderer ? SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING, Ppu::kWidth, Ppu::kHeight) : nullptr;
-    if (!window || !renderer || !texture) {
-        std::fprintf(stderr, "SDL display: %s\n", SDL_GetError());
-        SDL_DestroyTexture(texture);
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-    SDL_RenderSetLogicalSize(renderer, Ppu::kWidth, Ppu::kHeight);
-
-    constexpr double kFrameSeconds = static_cast<double>(Ppu::kCyclesPerFrame) / 16777216.0;
-    auto previous = std::chrono::steady_clock::now();
-    double accumulator = 0.0;
-    std::int64_t cycle_debt = 0;
-    long frames = 0;
-    bool running = true;
-    while (running) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT ||
-                (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) running = false;
+    std::unique_ptr<Emulator> emulator;
+    SDL_Window* window = nullptr;
+    SDL_Renderer* renderer = nullptr;
+    SDL_Texture* texture = nullptr;
+    int result = 0;
+    try {
+        if (argc < 2) throw std::runtime_error("Usage: gba_emu <rom.gba|--test-pattern> [--headless] [--frames N] [--dump-frame file.ppm]");
+        const bool pattern = std::string(argv[1]) == "--test-pattern";
+        bool headless = false;
+        bool trace = false;
+        u64 limit = 0;
+        std::string capture;
+        for (int i = 2; i < argc; ++i) {
+            const std::string option = argv[i];
+            if (option == "--headless") headless = true;
+            else if (option == "--trace") trace = true;
+            else if (option == "--frames" && i + 1 < argc) {
+                const std::string value = argv[++i];
+                std::size_t consumed = 0;
+                if (value.empty() || value[0] == '-') throw std::runtime_error("Invalid frame count");
+                limit = std::stoull(value, &consumed);
+                if (!limit || consumed != value.size()) throw std::runtime_error("Invalid frame count");
+            } else if (option == "--dump-frame" && i + 1 < argc) capture = argv[++i];
+            else throw std::runtime_error("Unknown or incomplete option: " + option);
         }
-        const auto now = std::chrono::steady_clock::now();
-        accumulator += std::chrono::duration<double>(now - previous).count();
-        previous = now;
-        if (accumulator > kFrameSeconds * 3) accumulator = kFrameSeconds * 3;
-        if (accumulator < kFrameSeconds) {
-            SDL_Delay(1);
-            continue;
+        if (headless && !limit) throw std::runtime_error("--headless requires --frames N");
+        emulator = std::make_unique<Emulator>(pattern ? std::vector<u8>{} : LoadRom(argv[1]), !pattern);
+        if (pattern) {
+            auto& bus = emulator->Memory();
+            bus.Write16(0x04000000u, 0x0403u);
+            for (u32 pixel = 0; pixel < 240 * 160; ++pixel)
+                bus.Write16(0x06000000u + pixel * 2, 31);
         }
-        accumulator -= kFrameSeconds;
-        if (!test_pattern) {
-            cycle_debt += Ppu::kCyclesPerFrame;
-            while (cycle_debt > 0) {
-                const u32 elapsed = cpu.Step();
-                ppu.Advance(elapsed);
-                cycle_debt -= elapsed;
+        if (!headless) {
+            if (SDL_Init(SDL_INIT_VIDEO) != 0) throw std::runtime_error(SDL_GetError());
+            window = SDL_CreateWindow("GBA Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                720, 480, SDL_WINDOW_SHOWN);
+            if (window) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+            if (!renderer && window) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+            if (renderer) texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                SDL_TEXTUREACCESS_STREAMING, 240, 160);
+            if (!texture) throw std::runtime_error(SDL_GetError());
+            SDL_RenderSetLogicalSize(renderer, 240, 160);
+        }
+        constexpr double period = static_cast<double>(Ppu::kCyclesPerFrame) / 16777216.0;
+        auto previous = std::chrono::steady_clock::now();
+        double accumulator = 0;
+        bool running = true;
+        while (running) {
+            if (!headless) {
+                SDL_Event event;
+                while (SDL_PollEvent(&event)) {
+                    if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) running = false;
+                }
+                if (!running) break;
+                const auto now = std::chrono::steady_clock::now();
+                accumulator = std::min(accumulator + std::chrono::duration<double>(now - previous).count(), period * 3);
+                previous = now;
+                if (accumulator < period) { SDL_Delay(1); continue; }
+                accumulator -= period;
             }
+            emulator->RunFrame();
+            if (!headless) {
+                SDL_UpdateTexture(texture, nullptr, emulator->Pixels().data(), 240 * sizeof(u32));
+                SDL_RenderClear(renderer);
+                SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+                SDL_RenderPresent(renderer);
+            }
+            if (limit && emulator->Frames() >= limit) running = false;
         }
-        ppu.RenderFrame();
-        SDL_UpdateTexture(texture, nullptr, ppu.Pixels().data(), Ppu::kWidth * sizeof(u32));
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, nullptr, nullptr);
-        SDL_RenderPresent(renderer);
-        if (max_frames && ++frames >= max_frames) running = false;
+        if (!capture.empty()) emulator->DumpFrame(capture.c_str());
+        if (trace) emulator->PrintTrace(std::cerr);
+        if (headless) std::cout << "frames=" << emulator->Frames() << " pc=0x" << std::hex
+            << emulator->Pc() << " dispcnt=0x" << emulator->Memory().Read16(0x04000000) << '\n';
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        if (emulator) emulator->PrintTrace(std::cerr);
+        result = 1;
     }
-
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return 0;
+    return result;
 }

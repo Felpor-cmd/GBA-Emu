@@ -35,6 +35,11 @@ public:
     u16 GetWaitcnt() const { return waitcnt_; }
     void SetVideoTiming(u16 scanline, bool hblank);
     void ResetMemory(u32 flags);
+    u32 RunDma(unsigned timing);
+    void RequestInterrupt(u16 bits);
+    bool InterruptPending() const { return (Read16(0x04000200) & Read16(0x04000202)) != 0; }
+    bool IrqEnabled() const { return (Read16(0x04000208) & 1u) && InterruptPending(); }
+    bool HasBios() const { return has_bios_; }
 
 private:
     std::array<u8, kBiosSize>    bios_{};
@@ -47,4 +52,7 @@ private:
     std::array<u8, kSramSize>    sram_{};
     std::vector<u8>              rom_;  
     u16 waitcnt_ = 0;
+    bool has_bios_ = false;
+    struct Dma { u32 source = 0, destination = 0, reload = 0; bool enabled = false; };
+    std::array<Dma, 4> dma_{};
 };

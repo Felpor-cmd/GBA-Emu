@@ -12,7 +12,8 @@ public:
     using Frame = std::array<u32, kWidth * kHeight>;
 
     explicit Ppu(Bus& bus) : bus_(bus) { bus_.SetVideoTiming(0, false); }
-    void Advance(u32 cycles);
+    u32 Advance(u32 cycles);
+    u32 CyclesToEvent() const { return (line_cycles_ < 1006 ? 1006u : 1232u) - line_cycles_; }
     void RenderFrame();
     const Frame& Pixels() const { return pixels_; }
 

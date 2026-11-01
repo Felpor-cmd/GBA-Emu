@@ -459,13 +459,13 @@ TEST_CASE("Cpu::Step banks exception mode stack and link registers") {
     cpu.SetRegister(14, 0x11111112u);
 
     cpu.Step();
-    REQUIRE(cpu.GetRegister(13) == 0);
+    REQUIRE(cpu.GetRegister(13) == 0x03007FE0u);
     REQUIRE(cpu.GetRegister(14) == 0);
     cpu.SetRegister(13, 0x22222221u);
     cpu.SetRegister(14, 0x22222222u);
 
     cpu.Step();
-    REQUIRE(cpu.GetRegister(13) == 0);
+    REQUIRE(cpu.GetRegister(13) == 0x03007FA0u);
     REQUIRE(cpu.GetRegister(14) == 0);
     cpu.SetRegister(13, 0x33333331u);
     cpu.SetRegister(14, 0x33333332u);
@@ -676,14 +676,14 @@ TEST_CASE("Cpu::Step reads a banked MSR source before switching modes") {
 
     cpu.Step();
     REQUIRE((cpu.GetCpsr() & 0x1Fu) == 0x13u);
-    REQUIRE(cpu.GetRegister(13) == 0);
+    REQUIRE(cpu.GetRegister(13) == 0x03007FE0u);
 
     cpu.Step();
     REQUIRE((cpu.GetCpsr() & 0x1Fu) == 0x11u);
     REQUIRE(cpu.GetRegister(8) == 0);
 }
 
-TEST_CASE("Cpu::Reset clears every active and banked register view") {
+TEST_CASE("Cpu::Reset restores every active and banked register view to post-BIOS state") {
     std::vector<u8> rom(12, 0);
     cpu_test::Put32(rom, 0, EncodeMsrRegister(0xE, false, kControlField, 0));
     cpu_test::Put32(rom, 4, EncodeMsrRegister(0xE, false, kControlField, 1));
@@ -709,7 +709,7 @@ TEST_CASE("Cpu::Reset clears every active and banked register view") {
     cpu.SetRegister(0, 0x00000013u);
     cpu.Step();
     REQUIRE(cpu.GetRegister(8) == 0);
-    REQUIRE(cpu.GetRegister(13) == 0);
+    REQUIRE(cpu.GetRegister(13) == 0x03007FE0u);
 
     cpu.SetRegister(1, 0x00000011u);
     cpu.Step();

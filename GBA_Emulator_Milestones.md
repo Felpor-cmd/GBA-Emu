@@ -7,14 +7,14 @@ moving to the next box.
 
 ---
 
-## Phase 0 — Project Foundations ✅ DONE
+## Phase 0 — Project Foundations
 
 - [x] C++ project skeleton with CMake
 - [x] Load a ROM file into memory
 - [x] CPU register file skeleton (`regs_[16]`, `cpsr_`)
 - [x] `Reset()` sets post-BIOS register state (skip real BIOS boot)
 
-## Phase 1 — Memory Bus ✅ DONE
+## Phase 1 — Memory Bus 
 
 - [x] EWRAM read/write
 - [x] IWRAM read/write
@@ -310,18 +310,18 @@ when you can actually look at them.
 - [x] Sprite (OBJ) rendering — affine (rotated/scaled) sprites
 - [x] Priority and layering between backgrounds and sprites
 - [ ] *(optional polish)* Mosaic effect
-- [ ] *(optional polish)* Alpha blending
-- [ ] *(optional polish)* Windowing (the GBA's clipping-region feature, not an OS window)
+- [x] *(optional polish)* Alpha blending (plus brightness effects)
+- [ ] *(optional polish)* Windowing (WIN0/1 implemented; OBJ window pending)
 
 ---
 
 ## Phase 5 — Interrupts
 
-- [ ] Give `IE`, `IF`, and `IME` (the interrupt control registers) real behavior instead of just sitting in the dumb I/O array
-- [ ] CPU exception entry for IRQ: mode switch, saving `LR`/`SPSR`, jumping to the interrupt vector
-- [ ] Return-from-interrupt handling
-- [ ] VBlank interrupt actually firing at the right time
-- [ ] HBlank interrupt actually firing at the right time
+- [x] Give `IE`, `IF`, and `IME` real behavior, including write-one-to-clear acknowledgement
+- [x] CPU exception entry for IRQ: mode switch, saving `LR`/`SPSR`, jumping to the interrupt vector
+- [x] Return-from-interrupt handling (including a BIOS-free game IRQ dispatcher)
+- [x] VBlank interrupt actually firing at the right time
+- [x] HBlank interrupt actually firing at the right time
 
 ---
 
@@ -335,9 +335,9 @@ when you can actually look at them.
 
 ## Phase 7 — DMA
 
-- [ ] Immediate (one-shot) DMA transfer
-- [ ] VBlank-triggered DMA
-- [ ] HBlank-triggered DMA
+- [x] Immediate (one-shot) DMA transfer
+- [x] VBlank-triggered DMA
+- [x] HBlank-triggered DMA
 - [ ] Sound FIFO DMA (you'll come back to wire this up properly once sound exists)
 
 ---

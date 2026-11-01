@@ -9,6 +9,25 @@ constexpr u32 kPalette = 0x05000000u;
 constexpr u32 kVram = 0x06000000u;
 constexpr u32 kOam = 0x07000000u;
 
+u16 ApplyEffect(u16 front, u16 back, unsigned mode, unsigned a, unsigned b) {
+    u16 result = 0;
+    for (unsigned shift : {0u, 5u, 10u}) {
+        const unsigned first = (front >> shift) & 31u, second = (back >> shift) & 31u;
+        unsigned value = first;
+        if (mode == 1) value = std::min(31u, (first * a + second * b) >> 4);
+        else if (mode == 2) value = first + ((31u - first) * a >> 4);
+        else if (mode == 3) value = first - (first * a >> 4);
+        result |= static_cast<u16>(value << shift);
+    }
+    return result;
+}
+
+bool WindowContains(u16 bounds, int coordinate) {
+    const int start = bounds >> 8, end = bounds & 255;
+    return start <= end ? coordinate >= start && coordinate < end
+                        : coordinate >= start || coordinate < end;
+}
+
 s32 SignedReference(u32 value) {
     value &= 0x0FFFFFFFu;
     if (value & 0x08000000u) value |= 0xF0000000u;
@@ -118,8 +137,8 @@ std::optional<u16> ObjectPixel(const Bus& bus, u16 dispcnt, u32 object,
         const s32 pc = static_cast<s16>(bus.Read16(matrix + 16));
         const s32 pd = static_cast<s16>(bus.Read16(matrix + 24));
         const int dx = sx - box_width / 2, dy = sy - box_height / 2;
-        sx = (pa * dx + pb * dy) / 256 + size.width / 2;
-        sy = (pc * dx + pd * dy) / 256 + size.height / 2;
+        sx = ((pa * dx + pb * dy) >> 8) + size.width / 2;
+        sy = ((pc * dx + pd * dy) >> 8) + size.height / 2;
         if (sx < 0 || sy < 0 || sx >= size.width || sy >= size.height) return std::nullopt;
     } else {
         if (attr1 & (1u << 12)) sx = size.width - 1 - sx;
@@ -157,13 +176,26 @@ u32 Ppu::ToRgba(u16 color) {
            ((green << 3 | green >> 2) << 8) | (blue << 3 | blue >> 2);
 }
 
-void Ppu::Advance(u32 cycles) {
+u32 Ppu::Advance(u32 cycles) {
+    u32 events = 0;
+    const u32 old_cycles = line_cycles_;
     line_cycles_ += cycles;
+    if (old_cycles < 1006 && line_cycles_ >= 1006) {
+        if (scanline_ < 160) events |= 2;
+        if (bus_.Read16(0x04000004u) & (1u << 4)) bus_.RequestInterrupt(2);
+    }
     while (line_cycles_ >= 1232) {
         line_cycles_ -= 1232;
         scanline_ = static_cast<u16>((scanline_ + 1) % 228);
+        const u16 status = bus_.Read16(0x04000004u);
+        if (scanline_ == 160) {
+            events |= 1;
+            if (status & (1u << 3)) bus_.RequestInterrupt(1);
+        }
+        if (scanline_ == (status >> 8) && (status & (1u << 5))) bus_.RequestInterrupt(4);
     }
     bus_.SetVideoTiming(scanline_, line_cycles_ >= 1006);
+    return events;
 }
 
 void Ppu::RenderFrame() {
@@ -177,6 +209,7 @@ void Ppu::RenderFrame() {
     pixels_.fill(backdrop);
     std::array<u32, kWidth * kHeight> object_keys;
     std::array<u16, kWidth * kHeight> object_colors{};
+    std::array<bool, kWidth * kHeight> object_semi{};
     object_keys.fill(0xFFFFFFFFu);
     if (dispcnt & (1u << 12)) {
         for (u32 object = 0; object < 128; ++object) {
@@ -200,17 +233,40 @@ void Ppu::RenderFrame() {
                     const u32 offset = static_cast<u32>(y * kWidth + x);
                     if (object_keys[offset] != 0xFFFFFFFFu) continue;
                     const auto color = ObjectPixel(bus_, dispcnt, object, x, y);
-                    if (color) { object_keys[offset] = key; object_colors[offset] = *color; }
+                    if (color) {
+                        object_keys[offset] = key;
+                        object_colors[offset] = *color;
+                        object_semi[offset] = ((attr0 >> 10) & 3u) == 1;
+                    }
                 }
             }
         }
     }
     for (int y = 0; y < kHeight; ++y) {
         for (int x = 0; x < kWidth; ++x) {
-            u32 best_key = 0xFFFFFFFFu;
-            u16 best_color = 0;
+            u16 mask = 0x3Fu;
+            if (dispcnt & 0xE000u) {
+                mask = bus_.Read16(0x0400004Au) & 0x3Fu;
+                for (int win = 1; win >= 0; --win) {
+                    if (!(dispcnt & (1u << (13 + win)))) continue;
+                    if (WindowContains(bus_.Read16(0x04000040u + win * 2), x) &&
+                        WindowContains(bus_.Read16(0x04000044u + win * 2), y))
+                        mask = (bus_.Read16(0x04000048u) >> (win * 8)) & 0x3Fu;
+                }
+            }
+            u32 best_key = 0xFFFFFFFEu, second_key = 0xFFFFFFFFu;
+            u16 best_color = bus_.Read16(kPalette), second_color = 0;
+            unsigned best_layer = 5, second_layer = 6;
+            auto add = [&](u32 key, u16 color, unsigned layer) {
+                if (key < best_key) {
+                    second_key = best_key; second_color = best_color; second_layer = best_layer;
+                    best_key = key; best_color = color; best_layer = layer;
+                } else if (key < second_key) {
+                    second_key = key; second_color = color; second_layer = layer;
+                }
+            };
             for (u32 bg = 0; bg < 4; ++bg) {
-                if (!(dispcnt & (1u << (8 + bg)))) continue;
+                if (!(dispcnt & (1u << (8 + bg))) || !(mask & (1u << bg))) continue;
                 std::optional<u16> color;
                 if (mode == 0 || (mode == 1 && bg < 2))
                     color = TextBackgroundPixel(bus_, bg, x, y);
@@ -222,14 +278,27 @@ void Ppu::RenderFrame() {
                 const u32 priority = mode >= 3 ? (bus_.Read16(0x0400000Cu) & 3u)
                     : (bus_.Read16(0x04000008u + bg * 2) & 3u);
                 const u32 key = priority * 256 + bg + 128;
-                if (key < best_key) { best_key = key; best_color = *color; }
+                add(key, *color, bg);
             }
             const u32 offset = static_cast<u32>(y * kWidth + x);
-            if (object_keys[offset] < best_key) {
-                best_key = object_keys[offset];
-                best_color = object_colors[offset];
+            if ((mask & 16u) && object_keys[offset] != 0xFFFFFFFFu)
+                add(object_keys[offset], object_colors[offset], 4);
+            const u16 blend = bus_.Read16(0x04000050u);
+            const bool semi = best_layer == 4 && object_semi[offset];
+            const unsigned mode_effect = (blend >> 6) & 3u;
+            const bool first_target = (blend & (1u << best_layer)) != 0;
+            const bool second_target = second_layer < 6 && (blend & (1u << (8 + second_layer)));
+            if (mask & 32u) {
+                if ((semi || (mode_effect == 1 && first_target)) && second_target) {
+                    const u16 alpha = bus_.Read16(0x04000052u);
+                    best_color = ApplyEffect(best_color, second_color, 1,
+                        std::min(16u, alpha & 31u), std::min(16u, (alpha >> 8) & 31u));
+                } else if (first_target && mode_effect >= 2) {
+                    best_color = ApplyEffect(best_color, 0, mode_effect,
+                        std::min(16u, bus_.Read16(0x04000054u) & 31u), 0);
+                }
             }
-            if (best_key != 0xFFFFFFFFu) pixels_[y * kWidth + x] = ToRgba(best_color);
+            pixels_[y * kWidth + x] = ToRgba(best_color);
         }
     }
 }

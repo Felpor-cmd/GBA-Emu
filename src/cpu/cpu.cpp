@@ -46,7 +46,7 @@ ArmKind ClassifyArm(u32 insn) {
 }
 }  // namespace
 
-Cpu::Cpu(Bus& bus) : bus_(bus) {
+Cpu::Cpu(Bus& bus, bool emulate_bios) : bus_(bus), emulate_bios_(emulate_bios) {
     Reset();
 }
 
@@ -98,6 +98,10 @@ void Cpu::Reset() {
     spsr_abt_ = 0;
     spsr_und_ = 0;
     regs_[13] = 0x03007F00;  // SP: matches the post-BIOS stack pointer (GBATEK: BIOS).
+    irq_r13_r14_[0] = 0x03007FA0u;
+    svc_r13_r14_[0] = 0x03007FE0u;
+    halted_ = hle_irq_active_ = false;
+    bios_wait_mask_ = 0;
     user_system_r13_r14_[0] = regs_[13];
     regs_[15] = 0x08000000;  // instruction_address: cartridge ROM entry point.
     cpsr_ = 0x1F;             // System mode, ARM state, IRQ/FIQ unmasked.
@@ -174,6 +178,11 @@ void Cpu::ChargeRefill(u32 target, unsigned width) {
 u32 Cpu::Step() {
     step_cycles_ = 0;
     data_sequential_ = false;
+    if (ServiceInterruptBoundary()) {
+        cycles_ += step_cycles_;
+        return step_cycles_;
+    }
+    if (halted_) { cycles_ += 4; return 4; }
     if (last_waitcnt_ != bus_.GetWaitcnt()) {
         prefetch_halfwords_ = prefetch_clocks_ = 0;
         last_waitcnt_ = bus_.GetWaitcnt();

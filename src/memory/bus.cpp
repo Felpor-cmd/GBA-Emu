@@ -2,7 +2,17 @@
 
 #include <algorithm>
 
+namespace {
+u32 VramOffset(u32 address) {
+    const u32 offset = address & 0x1FFFFu;
+    return offset >= 0x18000u ? offset - 0x8000u : offset;
+}
+}
+
 Bus::Bus(std::vector<u8> rom, std::vector<u8> bios) : rom_(std::move(rom)) {
+    has_bios_ = !bios.empty();
+    io_[0x130] = 0xFF;
+    io_[0x131] = 0x03;
     std::copy_n(bios.begin(), std::min(bios.size(), bios_.size()), bios_.begin());
 }
 
@@ -18,7 +28,7 @@ u8 Bus::Read8(u32 address) const {
         case 0x02: return ewram_[address & (kEwramSize - 1)];
         case 0x03: return iwram_[address & (kIwramSize - 1)];
         case 0x05: return palette_[address & (kPaletteSize - 1)];
-        case 0x06: return vram_[address & (kVramSize - 1)];
+        case 0x06: return vram_[VramOffset(address)];
         case 0x07: return oam_[address & (kOamSize - 1)];
 
         case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D: {
@@ -50,19 +60,38 @@ void Bus::Write8(u32 address, u8 value) {
         case 0x00: break; // BIOS is read-only, ignore writes
 
         case 0x04:
+            if (address == 0x04000202u || address == 0x04000203u) {
+                io_[address & 0x3FFu] &= static_cast<u8>(~value);
+                break;
+            }
+            if (address == 0x04000006u || address == 0x04000007u ||
+                address == 0x04000130u || address == 0x04000131u) break;
+            if (address == 0x04000004u) value = (value & 0x38u) | (io_[4] & 7u);
             if (address == 0x04000204) {
                 waitcnt_ = (waitcnt_ & 0xFF00u) | value;
             } else if (address == 0x04000205) {
                 waitcnt_ = (waitcnt_ & 0x00FFu) | (static_cast<u16>(value & 0x7Fu) << 8);
             } else {
                 io_[address & (kIoSize - 1)] = value;
+                for (unsigned channel = 0; channel < 4; ++channel) {
+                    const u32 base = 0x040000B0u + channel * 12;
+                    if (address != base + 11) continue;
+                    auto& dma = dma_[channel];
+                    const bool enabled = (value & 0x80u) != 0;
+                    if (enabled && !dma.enabled) {
+                        dma.source = Read32(base) & (channel == 0 ? 0x07FFFFFFu : 0x0FFFFFFFu);
+                        dma.destination = Read32(base + 4) & (channel == 3 ? 0x0FFFFFFFu : 0x07FFFFFFu);
+                        dma.reload = dma.destination;
+                    }
+                    dma.enabled = enabled;
+                }
             }
             break;
 
         case 0x02: ewram_[address & (kEwramSize - 1)] = value; break;
         case 0x03: iwram_[address & (kIwramSize - 1)] = value; break;
         case 0x05: palette_[address & (kPaletteSize - 1)] = value; break;
-        case 0x06: vram_[address & (kVramSize - 1)] = value; break;
+        case 0x06: vram_[VramOffset(address)] = value; break;
         case 0x07: oam_[address & (kOamSize - 1)] = value; break;
         
         case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D: {
@@ -74,6 +103,45 @@ void Bus::Write8(u32 address, u8 value) {
 
         default: break;
     }
+}
+
+void Bus::RequestInterrupt(u16 bits) {
+    io_[0x202] |= static_cast<u8>(bits);
+    io_[0x203] |= static_cast<u8>(bits >> 8);
+}
+
+u32 Bus::RunDma(unsigned timing) {
+    u32 cycles = 0;
+    for (unsigned channel = 0; channel < 4; ++channel) {
+        auto& dma = dma_[channel];
+        const u32 base = 0x040000B0u + channel * 12;
+        const u16 control = Read16(base + 10);
+        if (!dma.enabled || ((control >> 12) & 3u) != timing) continue;
+        const u32 width = (control & (1u << 10)) ? 4 : 2;
+        u32 count = Read16(base + 8) & (channel == 3 ? 0xFFFFu : 0x3FFFu);
+        if (!count) count = channel == 3 ? 0x10000u : 0x4000u;
+        dma.source &= ~(width - 1u);
+        dma.destination &= ~(width - 1u);
+        const unsigned src_mode = (control >> 7) & 3u, dst_mode = (control >> 5) & 3u;
+        cycles += 2;
+        for (u32 i = 0; i < count; ++i) {
+            cycles += AccessCycles(dma.source, width, i != 0) + AccessCycles(dma.destination, width, i != 0);
+            if (width == 4) Write32(dma.destination, Read32(dma.source));
+            else Write16(dma.destination, Read16(dma.source));
+            if (src_mode == 0) dma.source += width;
+            else if (src_mode == 1) dma.source -= width;
+            if (dst_mode == 0 || dst_mode == 3) dma.destination += width;
+            else if (dst_mode == 1) dma.destination -= width;
+        }
+        if (control & (1u << 14)) RequestInterrupt(static_cast<u16>(1u << (8 + channel)));
+        if (timing && (control & (1u << 9))) {
+            if (dst_mode == 3) dma.destination = dma.reload;
+        } else {
+            dma.enabled = false;
+            io_[(base + 11) & 0x3FFu] &= 0x7Fu;
+        }
+    }
+    return cycles;
 }
 
 void Bus::Write16(u32 address, u16 value) {
@@ -99,10 +167,32 @@ void Bus::SetVideoTiming(u16 scanline, bool hblank) {
 
 void Bus::ResetMemory(u32 flags) {
     if (flags & (1u << 0)) ewram_.fill(0);
-    if (flags & (1u << 1)) iwram_.fill(0);
+    if (flags & (1u << 1)) std::fill(iwram_.begin(), iwram_.end() - 0x200, 0);
     if (flags & (1u << 2)) palette_.fill(0);
     if (flags & (1u << 3)) vram_.fill(0);
     if (flags & (1u << 4)) oam_.fill(0);
+    // RegisterRamReset's documented SIODATA32 side effect occurs for every mask.
+    Write16(0x04000120u, 0);
+    if (flags & (1u << 5)) {
+        for (u32 offset : {0x128u, 0x12Au, 0x140u, 0x150u, 0x152u, 0x154u, 0x156u})
+            Write16(0x04000000u + offset, 0);
+        Write16(0x04000134u, 0x8000);
+    }
+    if (flags & (1u << 6)) {
+        for (u32 offset = 0x60; offset < 0xA8; offset += 2) Write16(0x04000000u + offset, 0);
+        Write16(0x04000088u, 0x0200);
+    }
+    if (flags & (1u << 7)) {
+        for (u32 offset = 4; offset <= 0x54; offset += 2) Write16(0x04000000u + offset, 0);
+        for (u32 offset : {0x20u, 0x26u, 0x30u, 0x36u}) Write16(0x04000000u + offset, 0x100);
+        for (u32 offset = 0xB0; offset < 0xE0; offset += 2) Write16(0x04000000u + offset, 0);
+        for (u32 offset = 0x100; offset < 0x110; offset += 2) Write16(0x04000000u + offset, 0);
+        Write16(0x04000200u, 0);
+        Write16(0x04000202u, 0xFFFF);
+        Write16(0x04000204u, 0);
+        Write16(0x04000208u, 0);
+    }
+    Write16(0x04000000u, 0x0080u);
 }
 
 u32 Bus::AccessCycles(u32 address, unsigned width, bool sequential) const {

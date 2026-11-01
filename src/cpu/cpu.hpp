@@ -18,7 +18,9 @@ class Cpu {
     bool SetCpsr(u32 value);
     bool SetSpsr(u32 value);
     
-    explicit Cpu(Bus& bus);
+    explicit Cpu(Bus& bus, bool emulate_bios = false);
+    bool IsHalted() const { return halted_; }
+    void Wake() { halted_ = false; }
 
     void ExecuteBranch(u32 instruction, u32 instruction_address);
     void ExecuteBranchExchange(u32 instruction);
@@ -59,6 +61,7 @@ private:
     void ChargeInternal(u32 cycles);
     u32 ChargeFetch(u32 address, unsigned width, bool sequential);
     void ChargeRefill(u32 target, unsigned width);
+    bool ServiceInterruptBoundary();
 
     std::array<u32, 16> regs_{};  // r0-r15, where r15 is the program counter.
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).
@@ -78,6 +81,10 @@ private:
     u32 spsr_und_ = 0;
 
     Bus& bus_;
+    bool emulate_bios_ = false;
+    bool halted_ = false;
+    u16 bios_wait_mask_ = 0;
+    bool hle_irq_active_ = false;
     u64 cycles_ = 0;
     u32 step_cycles_ = 0;
     u32 prefetch_clocks_ = 0;

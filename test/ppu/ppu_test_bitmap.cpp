@@ -82,3 +82,19 @@ TEST_CASE("PPU advances HBlank VBlank and VCOUNT at GBA scanline boundaries") {
     REQUIRE(bus.Read16(0x04000006) == 0);
     REQUIRE((bus.Read16(0x04000004) & 5u) == 0u);
 }
+
+TEST_CASE("Video IRQs use status enables and HBlank DMA excludes hidden scanlines") {
+    Bus bus({});
+    Ppu ppu(bus);
+    bus.Write16(0x04000004u, 0xA038); // All video IRQs, compare line 160.
+    REQUIRE((ppu.Advance(1005) & 2u) == 0);
+    REQUIRE(bus.Read16(0x04000202u) == 0);
+    REQUIRE((ppu.Advance(1) & 2u) != 0);
+    REQUIRE(bus.Read16(0x04000202u) == 2);
+    ppu.Advance(226 + 159 * 1232);
+    REQUIRE(bus.Read16(0x04000006u) == 160);
+    REQUIRE((bus.Read16(0x04000202u) & 7u) == 7u);
+    bus.Write16(0x04000202u, 7);
+    REQUIRE((ppu.Advance(1006) & 2u) == 0);
+    REQUIRE(bus.Read16(0x04000202u) == 2); // IRQ still fires in hidden HBlank.
+}

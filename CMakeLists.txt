@@ -12,6 +12,7 @@ endif()
 
 add_executable(gba_emu
     src/main.cpp
+    src/emulator.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp
@@ -40,6 +41,8 @@ enable_testing()
 
 add_executable(gba_tests
     test/main_test.cpp
+    test/emulator_test.cpp
+    src/emulator.cpp
     test/bus/bus_test_ewram_read_write.cpp
     test/bus/bus_test_iwram_read_write.cpp
     test/bus/bus_test_palette_ram_read_write.cpp
@@ -49,6 +52,7 @@ add_executable(gba_tests
     test/bus/bus_test_io_register_placeholder_read_write.cpp
     test/bus/bus_test_rom_read_all_three_mirrored_address_windows_bounds_checked.cpp
     test/bus/bus_test_sram_read_write.cpp
+    test/bus/bus_test_dma.cpp
     test/cpu/cpu_test_condition_code_evaluation.cpp
     test/cpu/cpu_test_fetch_decode_skeleton.cpp
     test/cpu/cpu_test_branch_fetch_width.cpp
@@ -61,6 +65,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_multiply.cpp
     test/cpu/cpu_test_psr_transfer.cpp
     test/cpu/cpu_test_swi.cpp
+    test/cpu/cpu_test_bios_boot.cpp
     test/cpu/cpu_test_thumb_shift.cpp
     test/cpu/cpu_test_thumb_families.cpp
     test/cpu/cpu_test_single_data_swap.cpp
@@ -72,6 +77,7 @@ add_executable(gba_tests
     test/cpu/cpu_test_arm_fixtures.cpp
     test/ppu/ppu_test_bitmap.cpp
     test/ppu/ppu_test_tiles.cpp
+    test/ppu/ppu_test_effects.cpp
     src/cpu/cpu.cpp
     src/cpu/cpu_branch.cpp
     src/cpu/cpu_data_processing.cpp
@@ -107,6 +113,9 @@ add_test(NAME opcode_thumb COMMAND opcode_rom_runner
 if(DEFINED MGBA_ROOT)
     find_path(MGBA_INCLUDE_DIR mgba/core/core.h PATHS "${MGBA_ROOT}/include" NO_DEFAULT_PATH REQUIRED)
     find_library(MGBA_LIBRARY mgba PATHS "${MGBA_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+    add_executable(mgba_frame_capture test/reference/mgba_frame_capture.cpp)
+    target_include_directories(mgba_frame_capture PRIVATE "${MGBA_INCLUDE_DIR}")
+    target_link_libraries(mgba_frame_capture PRIVATE "${MGBA_LIBRARY}")
     add_executable(mgba_trace_compare
         test/reference/mgba_trace_compare.cpp
         src/cpu/cpu.cpp src/cpu/cpu_branch.cpp src/cpu/cpu_data_processing.cpp
@@ -122,4 +131,49 @@ if(DEFINED MGBA_ROOT)
         "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/thumb_arithmetic.gba" 16)
     add_test(NAME mgba_thumb_memory_trace COMMAND mgba_trace_compare
         "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/arm/thumb_memory.gba" 22)
+endif()
+
+set(GBA_VERIFY_ROMS "" CACHE STRING "Optional semicolon-separated list of local GBA ROMs to compare with mGBA")
+set(GBA_VERIFY_FRAMES "600,3600" CACHE STRING "Comma-separated frame checkpoints for local ROM verification")
+set(GBA_VERIFY_MIN_COLORS "1" CACHE STRING "Minimum unique 5-bit colors required in local ROM captures")
+set(GBA_ZELDA_ROM "" CACHE FILEPATH "Optional local Zelda ROM (compatibility alias; adds a pinned Zelda check)")
+if(GBA_VERIFY_ROMS OR GBA_ZELDA_ROM)
+    if(NOT DEFINED MGBA_ROOT)
+        message(FATAL_ERROR "Local ROM verification requires MGBA_ROOT for reference captures")
+    endif()
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(_gba_verify_roms ${GBA_VERIFY_ROMS})
+    if(GBA_ZELDA_ROM)
+        get_filename_component(_zelda_rom_abs "${GBA_ZELDA_ROM}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
+    if(GBA_ZELDA_ROM)
+        list(APPEND _gba_verify_roms "${GBA_ZELDA_ROM}")
+    endif()
+    set(_gba_verify_names)
+    set(_gba_verify_paths)
+    foreach(_rom IN LISTS _gba_verify_roms)
+        get_filename_component(_rom_abs "${_rom}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        list(FIND _gba_verify_paths "${_rom_abs}" _rom_seen)
+        if(NOT _rom_seen EQUAL -1)
+            continue()
+        endif()
+        list(APPEND _gba_verify_paths "${_rom_abs}")
+        get_filename_component(_rom_name "${_rom}" NAME_WE)
+        string(REGEX REPLACE "[^A-Za-z0-9_]" "_" _rom_slug "${_rom_name}")
+        set(_test_name "rom_${_rom_slug}_screenshots")
+        if(_test_name IN_LIST _gba_verify_names)
+            message(FATAL_ERROR "ROM verification test name collision for '${_rom}'")
+        endif()
+        list(APPEND _gba_verify_names "${_test_name}")
+        set(_verify_args --frames "${GBA_VERIFY_FRAMES}" --min-colors "${GBA_VERIFY_MIN_COLORS}")
+        if(GBA_ZELDA_ROM AND _rom_abs STREQUAL _zelda_rom_abs)
+            list(APPEND _verify_args --sha256 "bedc74df62755f705398273de8ed3bc59be610cf55760d0b9aa277f1f5035e73" --min-colors 100)
+        endif()
+        add_test(NAME "${_test_name}" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify_rom.py"
+            --emulator "$<TARGET_FILE:gba_emu>" --reference "$<TARGET_FILE:mgba_frame_capture>"
+            --rom "${_rom_abs}" --output-dir "${CMAKE_CURRENT_BINARY_DIR}/rom-captures/${_rom_slug}"
+            ${_verify_args})
+        set_tests_properties("${_test_name}" PROPERTIES LABELS "local-rom" TIMEOUT 900)
+    endforeach()
 endif()
