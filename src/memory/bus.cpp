@@ -73,6 +73,7 @@ void Bus::Write8(u32 address, u8 value) {
 
         case 0x04:
             if (address >= 0x04000060u && address < 0x040000A8u) {
+                TraceAudio(AudioEventKind::RegisterWrite, address, value);
                 sound_.WriteRegister(address & 0x3FFu, value);
                 break;
             }
@@ -206,34 +207,59 @@ u64 Bus::IncrementTimer(unsigned timer_index, u64 ticks) {
     return overflows;
 }
 
+u32 Bus::CyclesToTimerEvent() const {
+    constexpr u32 prescalers[] = {1, 64, 256, 1024};
+    u32 next = 0xFFFFFFFFu;
+    for (unsigned index = 0; index < timers_.size(); ++index) {
+        const auto& timer = timers_[index];
+        if (!(timer.control & 0x80u) || (index && (timer.control & 4u))) continue;
+        const u32 until = (0x10000u - timer.counter) * prescalers[timer.control & 3u] - timer.prescaler_phase;
+        next = std::min(next, until);
+    }
+    return next;
+}
+
 u32 Bus::AdvanceTimers(u32 cycles) {
     constexpr u32 prescalers[] = {1, 64, 256, 1024};
-    std::array<u64, 4> overflows{};
     u32 dma_cycles = 0;
-    for (unsigned index = 0; index < timers_.size(); ++index) {
-        auto& timer = timers_[index];
-        if (!(timer.control & 0x80u)) continue;
-
-        const bool cascade = index != 0 && (timer.control & 0x04u);
-        u64 ticks = 0;
-        if (cascade) {
-            ticks = overflows[index - 1];
-        } else {
-            const u32 divisor = prescalers[timer.control & 3u];
-            const u64 elapsed = static_cast<u64>(timer.prescaler_phase) + cycles;
-            ticks = elapsed / divisor;
-            timer.prescaler_phase = static_cast<u16>(elapsed % divisor);
+    while (cycles) {
+        const u32 event = CyclesToTimerEvent();
+        const u32 elapsed = std::min(cycles, event);
+        // Reach the event chronologically. At a shared timer/DAC boundary,
+        // the newly clocked FIFO byte is sampled by the DAC.
+        const bool event_boundary = elapsed == event;
+        if (event_boundary && elapsed > 1) sound_.Advance(elapsed - 1);
+        hardware_cycles_ += elapsed;
+        std::array<u64, 4> overflows{};
+        for (unsigned index = 0; index < timers_.size(); ++index) {
+            auto& timer = timers_[index];
+            if (!(timer.control & 0x80u)) continue;
+            u64 ticks = overflows[index ? index - 1 : 0];
+            if (!index || !(timer.control & 4u)) {
+                const u32 divisor = prescalers[timer.control & 3u];
+                const u64 total = static_cast<u64>(timer.prescaler_phase) + elapsed;
+                ticks = total / divisor;
+                timer.prescaler_phase = static_cast<u16>(total % divisor);
+            }
+            overflows[index] = IncrementTimer(index, ticks);
+            if (overflows[index]) TraceAudio(AudioEventKind::TimerOverflow, index, timer.counter);
+            if (overflows[index] && (timer.control & 0x40u))
+                RequestInterrupt(static_cast<u16>(1u << (3 + index)));
+            if (index < 2 && overflows[index]) {
+                const u8 requests = sound_.TimerOverflow(index);
+                if (audio_trace_ && (Read16(0x04000084) & 0x80u)) {
+                    const u16 control = Read16(0x04000082);
+                    for (unsigned fifo = 0; fifo < 2; ++fifo)
+                        if (((control >> (fifo ? 14 : 10)) & 1u) == index)
+                            TraceAudio(AudioEventKind::FifoSample, fifo,
+                                static_cast<u8>(sound_.FifoSample(fifo)) | (static_cast<u32>(sound_.FifoSize(fifo)) << 8));
+                }
+                dma_cycles += RunSoundDma(requests);
+            }
         }
-
-        overflows[index] = IncrementTimer(index, ticks);
-        if (overflows[index] && (timer.control & 0x40u))
-            RequestInterrupt(static_cast<u16>(1u << (3 + index)));
-        for (u64 overflow = 0; overflow < overflows[index]; ++overflow)
-            dma_cycles += RunSoundDma(sound_.TimerOverflow(index));
+        sound_.Advance(event_boundary ? 1 : elapsed);
+        cycles -= elapsed;
     }
-    // Timer FIFO clocks at the end of this elapsed interval; sample output at
-    // that boundary sees the byte just clocked into the DAC.
-    sound_.Advance(cycles);
     return dma_cycles;
 }
 
@@ -251,6 +277,7 @@ u32 Bus::RunSoundDma(u8 requests) {
                 ((control >> 7) & 3u) == 3u) continue;
 
             dma.source &= ~3u;
+            TraceAudio(AudioEventKind::DmaRefill, channel, dma.source);
             cycles += 2; // DMA setup.
             for (unsigned word = 0; word < 4; ++word) {
                 cycles += AccessCycles(dma.source, 4, word != 0) +

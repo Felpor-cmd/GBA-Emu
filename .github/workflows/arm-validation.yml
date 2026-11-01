@@ -44,6 +44,6 @@ jobs:
       - name: Build comparator
         run: |
           cmake -S . -B build -G Ninja -DMGBA_ROOT="$PWD/mgba-install"
-          cmake --build build --target mgba_trace_compare --parallel
+          cmake --build build --target mgba_trace_compare audio_diagnostics --parallel
       - name: Compare instruction traces
-        run: ctest --test-dir build -R '^mgba_(arm|thumb)_.*trace$' --output-on-failure
+        run: ctest --test-dir build -R '^mgba_((arm|thumb)_.*trace|audio_.*)$' --output-on-failure

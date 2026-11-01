@@ -72,7 +72,7 @@ u8 Sound::ReadRegister(u32 offset) const {
     if (offset >= 0x90 && offset < 0xA0) {
         const unsigned index = offset - 0x90;
         const unsigned selected = (Register16(0x70) >> 6) & 1u;
-        const unsigned bank = selected ^ (wave_.active ? 1u : 0u);
+        const unsigned bank = selected ^ 1u;
         return wave_ram_[bank * 16 + index];
     }
     if (offset >= 0xA0 && offset < 0xA8) return 0;
@@ -102,7 +102,7 @@ void Sound::WriteRegister(u32 offset, u8 value) {
     if (offset >= 0x90 && offset < 0xA0) {
         const unsigned index = offset - 0x90;
         const unsigned selected = (Register16(0x70) >> 6) & 1u;
-        const unsigned bank = selected ^ (wave_.active ? 1u : 0u);
+        const unsigned bank = selected ^ 1u;
         wave_ram_[bank * 16 + index] = value;
         return;
     }
@@ -118,8 +118,6 @@ void Sound::WriteRegister(u32 offset, u8 value) {
             square2_ = SquareChannel{};
             wave_ = WaveChannel{};
             noise_ = NoiseChannel{};
-            noise_filtered_ = 0;
-            noise_integral_ = 0;
         }
         return;
     }
@@ -127,6 +125,35 @@ void Sound::WriteRegister(u32 offset, u8 value) {
 
     const u8 masked_value = value & WriteMask(offset);
     registers_[offset - kRegisterBase] = masked_value;
+    if (offset == 0x62) square1_.length = static_cast<u16>(64 - (value & 63u));
+    if (offset == 0x68) square2_.length = static_cast<u16>(64 - (value & 63u));
+    if (offset == 0x72) wave_.length = static_cast<u16>(256 - value);
+    if (offset == 0x78) noise_.length = static_cast<u16>(64 - (value & 63u));
+
+    // Frequency and length-enable writes also affect a channel already
+    // running; bit 15 only controls restarting its phase/envelope.
+    if (offset == 0x64 || offset == 0x65) {
+        square1_.frequency = Register16(0x64) & 0x7FFu;
+        square1_.length_enabled = (Register16(0x64) & 0x4000u) != 0;
+    } else if (offset == 0x6C || offset == 0x6D) {
+        square2_.frequency = Register16(0x6C) & 0x7FFu;
+        square2_.length_enabled = (Register16(0x6C) & 0x4000u) != 0;
+    } else if (offset == 0x74 || offset == 0x75) {
+        wave_.frequency = Register16(0x74) & 0x7FFu;
+        wave_.length_enabled = (Register16(0x74) & 0x4000u) != 0;
+    } else if (offset == 0x7D) {
+        noise_.length_enabled = (Register16(0x7C) & 0x4000u) != 0;
+    } else if (offset == 0x7C) {
+        const u16 polynomial = Register16(0x7C);
+        const u32 ratio = polynomial & 7u;
+        noise_.phase_cycles %= (ratio ? ratio * 64u : 32u) << ((polynomial >> 4) & 15u);
+    } else if (offset == 0x70 && !(value & 0x80u)) {
+        wave_.active = false;
+    }
+    if ((offset == 0x63 && !(value & 0xF8u))) square1_.active = false;
+    if ((offset == 0x69 && !(value & 0xF8u))) square2_.active = false;
+    if ((offset == 0x79 && !(value & 0xF8u))) noise_.active = false;
+    if (offset == 0x89) pwm_phase_ %= 512u >> ((Register16(0x88) >> 14) & 3u);
 
     if (offset == 0x83) {
         if (value & 0x08u) ClearFifo(0);
@@ -143,11 +170,9 @@ void Sound::WriteRegister(u32 offset, u8 value) {
 }
 
 void Sound::RestartSquare(SquareChannel& channel, u32 base, bool sweep) {
-    const u16 duty_length = Register16(base);
     const u16 frequency_control = Register16(base + 2);
     channel.active = true;
     channel.frequency = frequency_control & 0x07FFu;
-    channel.length = static_cast<u16>(64 - (duty_length & 0x3Fu));
     if (!channel.length) channel.length = 64;
     channel.length_enabled = (frequency_control & 0x4000u) != 0;
     channel.phase = 0;
@@ -161,7 +186,7 @@ void Sound::RestartSquare(SquareChannel& channel, u32 base, bool sweep) {
         sweep_cycles_ = 0;
         const u16 control = Register16(0x60);
         sweep_enabled_ = ((control >> 4) & 7u) != 0 || (control & 7u) != 0;
-        if ((control & 7u) && (sweep_shadow_ + (sweep_shadow_ >> (control & 7u))) > 2047)
+        if (!(control & 8u) && (control & 7u) && (sweep_shadow_ + (sweep_shadow_ >> (control & 7u))) > 2047)
             channel.active = false;
     }
 }
@@ -170,7 +195,6 @@ void Sound::RestartWave() {
     const u16 control = Register16(0x74);
     wave_.active = (Register16(0x70) & 0x0080u) != 0;
     wave_.frequency = control & 0x07FFu;
-    wave_.length = static_cast<u16>(256 - (Register16(0x72) & 0x00FFu));
     if (!wave_.length) wave_.length = 256;
     wave_.length_enabled = (control & 0x4000u) != 0;
     wave_.position = 0;
@@ -180,7 +204,6 @@ void Sound::RestartWave() {
 void Sound::RestartNoise() {
     const u16 control = Register16(0x7C);
     noise_.active = true;
-    noise_.length = static_cast<u16>(64 - (Register16(0x78) & 0x003Fu));
     if (!noise_.length) noise_.length = 64;
     noise_.length_enabled = (control & 0x4000u) != 0;
     noise_.volume = static_cast<u8>(Register16(0x78) >> 12);
@@ -188,7 +211,6 @@ void Sound::RestartNoise() {
     noise_.phase_cycles = 0;
     noise_.lfsr = (Register16(0x7C) & 0x0008u) ? 0x40u : 0x4000u;
     noise_.output_high = false;
-    noise_filtered_ = 0;
     if (!(Register16(0x78) & 0xF800u)) noise_.active = false;
 }
 
@@ -239,7 +261,6 @@ void Sound::AdvanceOscillators(u32 cycles) {
         u32 remaining = cycles;
         while (remaining) {
             const u32 step = std::min(remaining, base - noise_.phase_cycles);
-            noise_integral_ += NoiseOutput() * static_cast<s32>(step);
             noise_.phase_cycles += step;
             remaining -= step;
             if (noise_.phase_cycles == base) {
@@ -314,7 +335,7 @@ void Sound::ClockSequencer() {
 int Sound::SquareOutput(const SquareChannel& channel, u32 base) const {
     if (!channel.active || !channel.volume) return 0;
     const unsigned duty = (Register16(base) >> 6) & 3u;
-    constexpr u8 patterns[] = {0x01, 0x03, 0x0F, 0x7F};
+    constexpr u8 patterns[] = {0x01, 0x03, 0x0F, 0x3F};
     const int amplitude = static_cast<int>(channel.volume) * 8;
     return (patterns[duty] & (1u << channel.phase)) ? amplitude : -amplitude;
 }
@@ -335,7 +356,7 @@ int Sound::WaveOutput() const {
     else if (volume_mode == 0) return 0;
     else if (volume_mode == 2) amplitude /= 2;
     else if (volume_mode == 3) amplitude /= 4;
-    return amplitude * 8;
+    return amplitude * 16;
 }
 
 int Sound::NoiseOutput() const {
@@ -344,24 +365,21 @@ int Sound::NoiseOutput() const {
     return noise_.output_high ? amplitude : -amplitude;
 }
 
-void Sound::MixSample(s16& left, s16& right) {
-    // A short low-pass stage keeps the fast PSG noise from folding into
-    // harsh 32 kHz sample-to-sample edges.
-    noise_filtered_ = (noise_filtered_ + noise_integral_ / static_cast<int>(kSampleCycles)) / 2;
+void Sound::MixSample(s16& left, s16& right) const {
     if (!(Register16(0x84) & 0x80u)) { left = right = 0; return; }
     const u16 pan = Register16(0x80);
     const u16 direct = Register16(0x82);
     const int psg_volume = static_cast<int>(direct & 3u);
     const int psg_scale = psg_volume == 0 ? 1 : psg_volume == 1 ? 2 : 4;
     s32 left_mix = 0, right_mix = 0;
-    const int outputs[] = {SquareOutput(square1_, 0x62), SquareOutput(square2_, 0x68), WaveOutput(), noise_filtered_};
+    const int outputs[] = {SquareOutput(square1_, 0x62), SquareOutput(square2_, 0x68), WaveOutput(), NoiseOutput()};
     for (unsigned channel = 0; channel < 4; ++channel) {
         const int value = outputs[channel] * psg_scale / 4;
         if (pan & (1u << (8 + channel))) right_mix += value;
         if (pan & (1u << (12 + channel))) left_mix += value;
     }
-    left_mix = left_mix * static_cast<int>((pan >> 4) & 7u) / 7;
-    right_mix = right_mix * static_cast<int>(pan & 7u) / 7;
+    left_mix = left_mix * static_cast<int>(1 + ((pan >> 4) & 7u)) / 8;
+    right_mix = right_mix * static_cast<int>(1 + (pan & 7u)) / 8;
 
     for (unsigned channel = 0; channel < 2; ++channel) {
         const unsigned right_bit = channel == 0 ? 8u : 12u;
@@ -372,14 +390,25 @@ void Sound::MixSample(s16& left, s16& right) {
         if (direct & (1u << right_bit)) right_mix += scaled;
         if (direct & (1u << left_bit)) left_mix += scaled;
     }
-    left = static_cast<s16>(ClampS16(left_mix * 32));
-    right = static_cast<s16>(ClampS16(right_mix * 32));
+    const u16 bias_control = Register16(0x88);
+    const s32 bias = bias_control & 0x3FEu;
+    const u32 resolution = (bias_control >> 14) & 3u;
+    const auto dac = [bias, resolution](s32 mix) {
+        const s32 clipped = std::clamp(mix + bias, 0, 1023);
+        const s32 quantized = clipped & ~static_cast<s32>((1u << (resolution + 1)) - 1u);
+        return ClampS16((quantized - bias) * 32);
+    };
+    left = dac(left_mix);
+    right = dac(right_mix);
 }
 
 void Sound::PushHostSample(s16 left, s16 right) {
     const u32 write = sample_write_.load(std::memory_order_relaxed);
     const u32 next = (write + 1u) & kRingMask;
-    if (next == sample_read_.load(std::memory_order_acquire)) return;
+    if (next == sample_read_.load(std::memory_order_acquire)) {
+        dropped_samples_.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
     samples_[write] = {left, right};
     sample_write_.store(next, std::memory_order_release);
 }
@@ -401,23 +430,35 @@ u32 Sound::QueuedSamples() const {
 }
 
 void Sound::PushSample() {
-    s16 left = 0, right = 0;
-    MixSample(left, right);
-    PushHostSample(left, right);
-    noise_integral_ = 0;
+    if (pwm_samples_)
+        PushHostSample(static_cast<s16>(pwm_left_ / static_cast<s32>(pwm_samples_)),
+                       static_cast<s16>(pwm_right_ / static_cast<s32>(pwm_samples_)));
+    else PushHostSample(0, 0);
+    pwm_left_ = pwm_right_ = 0;
+    pwm_samples_ = 0;
 }
 
 void Sound::Advance(u32 cycles) {
     while (cycles) {
         const u32 sample_remaining = kSampleCycles - sample_phase_;
-        const u32 amount = std::min(cycles, sample_remaining);
+        const u32 pwm_period = 512u >> ((Register16(0x88) >> 14) & 3u);
+        const u32 amount = std::min({cycles, sample_remaining, pwm_period - pwm_phase_});
         AdvanceOscillators(amount);
         sample_phase_ += amount;
         sequencer_phase_ += amount;
+        pwm_phase_ += amount;
         cycles -= amount;
         if (sequencer_phase_ == kSequencerCycles) {
             sequencer_phase_ = 0;
             ClockSequencer();
+        }
+        if (pwm_phase_ == pwm_period) {
+            pwm_phase_ = 0;
+            s16 left = 0, right = 0;
+            MixSample(left, right);
+            pwm_left_ += left;
+            pwm_right_ += right;
+            ++pwm_samples_;
         }
         if (sample_phase_ == kSampleCycles) {
             sample_phase_ = 0;

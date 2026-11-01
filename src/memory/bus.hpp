@@ -19,6 +19,10 @@ constexpr u32 kIoSize      = 0x400;     // 1 KB   I/O Registers - PLACEHOLDER
 // memory through this shared address map.
 class Bus {
 public:
+    enum class AudioEventKind { RegisterWrite, TimerOverflow, FifoSample, DmaRefill };
+    struct AudioEvent { u64 cycle; AudioEventKind kind; unsigned index; u32 value; };
+    using AudioTrace = void (*)(void*, const AudioEvent&);
+    void SetAudioTrace(AudioTrace trace, void* context) { audio_trace_ = trace; audio_trace_context_ = context; }
     explicit Bus(std::vector<u8> rom, std::vector<u8> bios = {});
 
     u8  Read8(u32 address) const;
@@ -40,8 +44,11 @@ public:
     void ResetMemory(u32 flags);
     u32 RunDma(unsigned timing);
     u32 AdvanceTimers(u32 cycles);
+    u32 CyclesToTimerEvent() const;
+    u64 HardwareCycles() const { return hardware_cycles_; }
     bool PopAudioSample(s16& left, s16& right);
     u32 QueuedAudioSamples() const { return sound_.QueuedSamples(); }
+    u64 DroppedAudioSamples() const { return sound_.DroppedSamples(); }
     void RequestInterrupt(u16 bits);
     bool InterruptPending() const { return (Read16(0x04000200) & Read16(0x04000202)) != 0; }
     bool IrqEnabled() const { return (Read16(0x04000208) & 1u) && InterruptPending(); }
@@ -69,6 +76,12 @@ private:
         u16 prescaler_phase = 0;
     };
     std::array<Timer, 4> timers_{};
+    u64 hardware_cycles_ = 0;
+    AudioTrace audio_trace_ = nullptr;
+    void* audio_trace_context_ = nullptr;
+    void TraceAudio(AudioEventKind kind, unsigned index, u32 value) const {
+        if (audio_trace_) audio_trace_(audio_trace_context_, {hardware_cycles_, kind, index, value});
+    }
     u64 IncrementTimer(unsigned timer, u64 ticks);
     u32 RunSoundDma(u8 requests);
 };

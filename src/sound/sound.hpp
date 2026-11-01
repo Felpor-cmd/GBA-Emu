@@ -18,6 +18,9 @@ public:
     u8 TimerOverflow(unsigned timer);
     bool PopSample(s16& left, s16& right);
     u32 QueuedSamples() const;
+    u64 DroppedSamples() const { return dropped_samples_.load(std::memory_order_relaxed); }
+    s8 FifoSample(unsigned channel) const { return fifos_[channel].current; }
+    u8 FifoSize(unsigned channel) const { return fifos_[channel].size; }
 
 private:
     struct SquareChannel {
@@ -71,9 +74,10 @@ private:
     std::array<StereoSample, kRingCapacity> samples_{};
     std::atomic<u32> sample_write_{0};
     std::atomic<u32> sample_read_{0};
+    std::atomic<u64> dropped_samples_{0};
     u32 sample_phase_ = 0;
-    s32 noise_integral_ = 0;
-    s32 noise_filtered_ = 0;
+    u32 pwm_phase_ = 0, pwm_samples_ = 0;
+    s32 pwm_left_ = 0, pwm_right_ = 0;
     u32 sequencer_phase_ = 0;
     u8 sequencer_step_ = 0;
     u16 sweep_shadow_ = 0;
@@ -92,7 +96,7 @@ private:
     void RestartWave();
     void RestartNoise();
     void PushSample();
-    void MixSample(s16& left, s16& right);
+    void MixSample(s16& left, s16& right) const;
     int SquareOutput(const SquareChannel& channel, u32 base) const;
     int WaveOutput() const;
     int NoiseOutput() const;

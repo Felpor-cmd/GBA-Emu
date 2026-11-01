@@ -53,6 +53,12 @@ target_include_directories(gba_emu PRIVATE src)
 target_link_libraries(gba_emu PRIVATE SDL2::SDL2 imgui)
 target_compile_options(gba_emu PRIVATE -Wall -Wextra)
 
+get_target_property(_audio_diagnostic_sources gba_emu SOURCES)
+list(FILTER _audio_diagnostic_sources EXCLUDE REGEX "src/(main.cpp|input/|ui/)")
+add_executable(audio_diagnostics test/reference/audio_diagnostics.cpp ${_audio_diagnostic_sources})
+target_include_directories(audio_diagnostics PRIVATE src)
+target_compile_options(audio_diagnostics PRIVATE -Wall -Wextra)
+
 FetchContent_Declare(
   Catch2
   GIT_REPOSITORY https://github.com/catchorg/Catch2.git
@@ -146,6 +152,21 @@ add_test(NAME opcode_thumb COMMAND opcode_rom_runner
 if(DEFINED MGBA_ROOT)
     find_path(MGBA_INCLUDE_DIR mgba/core/core.h PATHS "${MGBA_ROOT}/include" NO_DEFAULT_PATH REQUIRED)
     find_library(MGBA_LIBRARY mgba PATHS "${MGBA_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+    target_include_directories(audio_diagnostics PRIVATE "${MGBA_INCLUDE_DIR}")
+    target_link_libraries(audio_diagnostics PRIVATE "${MGBA_LIBRARY}")
+    target_compile_definitions(audio_diagnostics PRIVATE HAVE_MGBA)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    foreach(_audio_fixture square wave fifo)
+        set(_audio_args)
+        if(_audio_fixture STREQUAL "fifo")
+            list(APPEND _audio_args --events)
+        endif()
+        add_test(NAME "mgba_audio_${_audio_fixture}" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/audit_audio.py"
+            --runner "$<TARGET_FILE:audio_diagnostics>" --rom "@${_audio_fixture}"
+            --frames 120 --output-dir "/tmp/gba-emu/audio-fixtures/${_audio_fixture}"
+            ${_audio_args})
+    endforeach()
     add_executable(mgba_frame_capture test/reference/mgba_frame_capture.cpp)
     target_include_directories(mgba_frame_capture PRIVATE "${MGBA_INCLUDE_DIR}")
     target_link_libraries(mgba_frame_capture PRIVATE "${MGBA_LIBRARY}")

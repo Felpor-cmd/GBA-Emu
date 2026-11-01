@@ -176,13 +176,21 @@ void Cpu::ChargeRefill(u32 target, unsigned width) {
 }
 
 u32 Cpu::Step() {
+    return StepUntilEvent(4);
+}
+
+u32 Cpu::StepUntilEvent(u32 halt_cycles) {
     step_cycles_ = 0;
     data_sequential_ = false;
     if (ServiceInterruptBoundary()) {
         cycles_ += step_cycles_;
         return step_cycles_;
     }
-    if (halted_) { cycles_ += 4; return 4; }
+    if (halted_) {
+        const u32 elapsed = halt_cycles ? halt_cycles : 1;
+        cycles_ += elapsed;
+        return elapsed;
+    }
     if (last_waitcnt_ != bus_.GetWaitcnt()) {
         prefetch_halfwords_ = prefetch_clocks_ = 0;
         last_waitcnt_ = bus_.GetWaitcnt();

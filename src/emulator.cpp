@@ -1,11 +1,13 @@
 #include "emulator.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>
 
-void Emulator::RunFrame() {
+void Emulator::RunFrame(bool render_frame) {
+    const auto begin = timing_diagnostics_ ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     cycle_debt_ += Ppu::kCyclesPerFrame;
     while (cycle_debt_ > 0) {
         const u32 pc = cpu_.GetRegister(15), cpsr = cpu_.GetCpsr();
@@ -15,7 +17,9 @@ void Emulator::RunFrame() {
                 (cpsr & kThumbFlag) ? bus_.Read16(pc) : bus_.Read32(pc), cpsr,
                 sp, cpu_.GetRegister(14), bus_.Read32(sp)};
         }
-        u32 remaining = run_cpu_ ? cpu_.Step() + bus_.RunDma(0) : ppu_.CyclesToEvent();
+        const u32 next_event = cpu_.IsHalted() ? std::min({ppu_.CyclesToEvent(), bus_.CyclesToTimerEvent(),
+            static_cast<u32>(cycle_debt_)}) : 4u;
+        u32 remaining = run_cpu_ ? cpu_.StepUntilEvent(next_event) + bus_.RunDma(0) : ppu_.CyclesToEvent();
         while (remaining) {
             const u32 elapsed = std::min(remaining, ppu_.CyclesToEvent());
             remaining += bus_.AdvanceTimers(elapsed);
@@ -26,8 +30,19 @@ void Emulator::RunFrame() {
             if (events & 2u) remaining += bus_.RunDma(2);
         }
     }
-    ppu_.RenderFrame();
+    if (timing_diagnostics_) {
+        frame_timing_.hardware_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
+        frame_timing_.render_ms = 0;
+    }
+    if (render_frame) RenderFrame();
     ++frames_;
+}
+
+void Emulator::RenderFrame() {
+    const auto begin = timing_diagnostics_ ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    ppu_.RenderFrame();
+    if (timing_diagnostics_)
+        frame_timing_.render_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
 }
 
 void Emulator::DumpFrame(const char* path) const {

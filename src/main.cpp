@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -48,12 +49,14 @@ int main(int argc, char** argv) {
         const bool pattern = std::string(argv[1]) == "--test-pattern";
         bool headless = false;
         bool trace = false;
+        bool audio_diagnostics = false;
         u64 limit = 0;
         std::string capture;
         for (int i = 2; i < argc; ++i) {
             const std::string option = argv[i];
             if (option == "--headless") headless = true;
             else if (option == "--trace") trace = true;
+            else if (option == "--audio-diagnostics") audio_diagnostics = true;
             else if (option == "--frames" && i + 1 < argc) {
                 const std::string value = argv[++i];
                 std::size_t consumed = 0;
@@ -97,6 +100,17 @@ int main(int argc, char** argv) {
         }
         constexpr double period = static_cast<double>(Ppu::kCyclesPerFrame) / 16777216.0;
         auto previous = std::chrono::steady_clock::now();
+        const auto started = previous;
+        auto next_audio_log = previous;
+        std::ofstream audio_log;
+        if (audio_diagnostics) {
+            const auto directory = std::filesystem::temp_directory_path() / "gba-emu" /
+                std::filesystem::path(argv[1]).stem() / "logs";
+            std::filesystem::create_directories(directory);
+            audio_log.open(directory / "playback.csv");
+            if (!audio_log) throw std::runtime_error("Cannot open audio diagnostics log");
+            audio_log << "wall_seconds,frames,backlog_seconds,queued,underrun_samples,dropped_samples,output_frames\n";
+        }
         double accumulator = 0;
         bool audio_started = false;
         bool running = true;
@@ -114,20 +128,31 @@ int main(int argc, char** argv) {
                 }
                 if (!running) break;
                 const auto now = std::chrono::steady_clock::now();
-                accumulator = std::min(accumulator + std::chrono::duration<double>(now - previous).count(), period * 3);
+                accumulator += std::chrono::duration<double>(now - previous).count();
                 previous = now;
                 const bool keyboard_focused = SDL_GetKeyboardFocus() == window && !input.IsRebinding();
                 emulator->Memory().SetKeyInput(input.PressedMask(keyboard_focused));
-                while (accumulator >= period && running) {
-                    emulator->RunFrame();
-                    accumulator -= period;
+                unsigned catchup_frames = 0;
+                bool frame_advanced = false;
+                const auto frame_due = [&] {
+                    return audio_started ? !audio_output->Ready() : accumulator >= period;
+                };
+                while (frame_due() && running && catchup_frames++ < 3) {
+                    emulator->RunFrame(false);
+                    frame_advanced = true;
+                    // Once audio starts, its fixed-rate consumption is the
+                    // clock. Replenish the queue instead of accumulating drift
+                    // between independent video and audio clocks.
+                    if (audio_started) accumulator = 0;
+                    else accumulator -= period;
                     if (audio_device && !audio_started && audio_output->Ready()) {
                         SDL_PauseAudioDevice(audio_device, 0);
                         audio_started = true;
                     }
                     if (limit && emulator->Frames() >= limit) running = false;
                 }
-                if (renderer) {
+                if (renderer && frame_advanced && !frame_due()) {
+                    emulator->RenderFrame();
                     SDL_UpdateTexture(texture, nullptr, emulator->Pixels().data(), 240 * sizeof(u32));
                     SDL_RenderClear(renderer);
                     int output_width = 0, output_height = 0;
@@ -136,7 +161,14 @@ int main(int argc, char** argv) {
                     SDL_RenderCopy(renderer, texture, nullptr, &destination);
                     settings_ui.Render(input, window, renderer);
                 }
-                SDL_Delay(1);
+                if (audio_diagnostics && now >= next_audio_log) {
+                    audio_log << std::chrono::duration<double>(now - started).count() << ',' << emulator->Frames()
+                        << ',' << accumulator << ',' << emulator->Memory().QueuedAudioSamples()
+                        << ',' << audio_output->Underruns() << ',' << emulator->Memory().DroppedAudioSamples()
+                        << ',' << audio_output->OutputFrames() << '\n';
+                    next_audio_log = now + std::chrono::seconds(1);
+                }
+                if (!frame_due()) SDL_Delay(1);
             }
             if (headless) {
                 emulator->RunFrame();

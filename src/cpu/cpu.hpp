@@ -38,6 +38,8 @@ class Cpu {
     void EnterSoftwareInterruptException(u32 instruction_address);
     void Reset();  // Set up post-BIOS register/mode state.
     u32 Step();    // Fetch-decode-execute one instruction; return elapsed clocks.
+    // A halted CPU can sleep until the coordinator's next hardware event.
+    u32 StepUntilEvent(u32 halt_cycles);
     u64 GetCycles() const { return cycles_; }
 
 private:
