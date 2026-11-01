@@ -104,7 +104,7 @@ void Cpu::ExecuteSingleDataTransfer(u32 instruction, u32 instruction_address) {
         WriteData8(effective_address, static_cast<u8>(regs_[rd]));
     } else {
         u32 aligned_addr = effective_address & ~3u;
-        WriteData32(aligned_addr, regs_[rd]);
+        WriteData32(aligned_addr, rd == 15 ? regs_[15] + 8u : regs_[rd]);
     }
 
     // Handle writeback: if Rn==Rd during load with writeback, loaded value takes precedence
@@ -151,10 +151,16 @@ void Cpu::ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address) 
     if (!load) {
         WriteData16(aligned_halfword_addr, static_cast<u16>(regs_[rd]));
     } else if (!signed_transfer) {
-        regs_[rd] = ReadData16(aligned_halfword_addr);
+        const u32 value = ReadData16(aligned_halfword_addr);
+        regs_[rd] = (effective_address & 1u)
+            ? cpu_detail::RotateRight(value, 8) : value;
     } else if (halfword) {
-        u32 value = ReadData16(aligned_halfword_addr);
-        regs_[rd] = (value & 0x8000u) ? value | 0xFFFF0000u : value;
+        if (effective_address & 1u) {
+            regs_[rd] = static_cast<u32>(static_cast<s32>(static_cast<s8>(ReadData8(effective_address))));
+        } else {
+            const u32 value = ReadData16(aligned_halfword_addr);
+            regs_[rd] = (value & 0x8000u) ? value | 0xFFFF0000u : value;
+        }
     } else {
         u32 value = ReadData8(effective_address);  // LDRSB uses byte address
         regs_[rd] = (value & 0x80u) ? value | 0xFFFFFF00u : value;
@@ -162,7 +168,7 @@ void Cpu::ExecuteHalfwordDataTransfer(u32 instruction, u32 instruction_address) 
 
     // For post-indexed addressing, writeback always occurs (W bit is ignored)
     bool effective_writeback = writeback || !pre_index;
-    if (rn != 15 && effective_writeback) {
+    if (rn != 15 && effective_writeback && !(load && rn == rd)) {
         regs_[rn] = base + adjusted_offset;
     }
 }
@@ -218,9 +224,10 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
         }
     }
     // Registers always transfer in ascending number and address order.
+    const u32 transfer_base = base & ~3u;
     u32 address = add_offset
-        ? base + (pre_index ? 4u : 0u)
-        : base - register_count * 4 + (pre_index ? 0u : 4u);
+        ? transfer_base + (pre_index ? 4u : 0u)
+        : transfer_base - register_count * 4 + (pre_index ? 0u : 4u);
 
     u32 loaded_pc = 0;
     bool pc_loaded = false;
@@ -236,14 +243,7 @@ void Cpu::ExecuteBlockDataTransfer(u32 instruction, u32 instruction_address) {
 
         if (load) {
             u32 loaded_value;
-            if ((address & 3) == 0) {
-                loaded_value = ReadData32(address);
-            } else {
-                u32 aligned_addr = address & ~3u;
-                u32 word = ReadData32(aligned_addr);
-                unsigned rotate = (address & 3) * 8;
-                loaded_value = (word >> rotate) | (word << (32 - rotate));
-            }
+            loaded_value = ReadData32(address & ~3u);
             if (reg == 15) {
                 loaded_pc = loaded_value;
                 pc_loaded = true;
@@ -314,9 +314,10 @@ void Cpu::ExecuteSingleDataSwap(u32 instruction) {
         WriteData8(base, static_cast<u8>(rm_value));
         regs_[rd] = loaded_byte;
     } else {
-        u32 loaded_word = ReadData32(base);
+        u32 loaded_word = cpu_detail::RotateRight(ReadData32(base & ~3u),
+                                                    (base & 3u) * 8u);
         data_sequential_ = false;
-        WriteData32(base, rm_value);
+        WriteData32(base & ~3u, rm_value);
         regs_[rd] = loaded_word;
     }
 }

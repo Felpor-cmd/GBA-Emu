@@ -17,8 +17,10 @@ AddResult AddWithCarry(u32 a, u32 b, bool carry_in) {
 
 struct ShiftResult { u32 value; bool carry; };
 
-ShiftResult ShiftWithCarry(u32 value, u32 shift_type, u32 amount, bool carry_in) {
+ShiftResult ShiftWithCarry(u32 value, u32 shift_type, u32 amount, bool carry_in,
+                           bool register_specified = false) {
     bool carry = carry_in;
+    if (register_specified && amount == 0) return {value, carry_in};
 
     switch (shift_type) {
         case 0: { // LSL
@@ -90,7 +92,9 @@ void Cpu::ExecuteDataProcessing(u32 instruction, u32 instruction_address) {
     u32 rd = (instruction >> 12) & 0xF;
     bool immediate_operand = (instruction >> 25) & 1;
 
-    u32 op1 = GetRegisterWithPC(rn, instruction_address);
+    const bool register_shift = !immediate_operand && (instruction & (1u << 4));
+    u32 op1 = GetRegisterWithPC(rn, instruction_address) +
+              ((register_shift && rn == 15) ? 4u : 0u);
     bool c_in = (cpsr_ >> 29) & 1;
 
     u32 op2 = 0;
@@ -116,7 +120,9 @@ void Cpu::ExecuteDataProcessing(u32 instruction, u32 instruction_address) {
             // Shift amount from bottom 8 bits of Rs register
             u32 rs = (instruction >> 8) & 0xF;
             u32 shift_amount = GetRegisterWithPC(rs, instruction_address) & 0xFF;
-            auto shifted = ShiftWithCarry(GetRegisterWithPC(rm, instruction_address), shift_type, shift_amount, c_in);
+            const u32 source = GetRegisterWithPC(rm, instruction_address) +
+                               (rm == 15 ? 4u : 0u);
+            auto shifted = ShiftWithCarry(source, shift_type, shift_amount, c_in, true);
             op2 = shifted.value;
             shifter_carry_out = shifted.carry;
         } else {
@@ -154,8 +160,10 @@ void Cpu::ExecuteDataProcessing(u32 instruction, u32 instruction_address) {
 
     if (write_result) {
         if (rd == 15) {
-            // PC write: align to word boundary (bits 1:0 = 00)
-            regs_[15] = result & ~3u;
+            // MOVS/ALUS PC restores SPSR and can return to a Thumb halfword.
+            u32* saved_status = set_flags ? CurrentSpsr() : nullptr;
+            const bool returns_to_thumb = saved_status && (*saved_status & kThumbFlag);
+            regs_[15] = result & (returns_to_thumb ? ~1u : ~3u);
         } else {
             regs_[rd] = result;
         }
@@ -219,9 +227,9 @@ void Cpu::ExecuteMultiply(u32 instruction) {
 void Cpu::ExecuteLongMultiply(u32 instruction) {
     bool accumulate = (instruction >> 21) & 1;
     bool set_flags = (instruction >> 20) & 1;
-    bool is_signed = (instruction >> 23) & 1;
-    u32 rd_lo = (instruction >> 16) & 0xF;  // Destination low
-    u32 rd_hi = (instruction >> 12) & 0xF;  // Destination high
+    bool is_signed = (instruction >> 22) & 1;
+    u32 rd_hi = (instruction >> 16) & 0xF;  // Destination high
+    u32 rd_lo = (instruction >> 12) & 0xF;  // Destination low
     u32 rs = (instruction >> 8) & 0xF;      // Source register
     u32 rm = instruction & 0xF;             // Multiplier register
 

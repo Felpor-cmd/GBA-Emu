@@ -36,3 +36,15 @@ TEST_CASE("VRAM mirroring") {
     REQUIRE(bus.Read8(out_of_bounds) == 0x55);
     REQUIRE(bus.Read8(wrapped) == 0x55);
 }
+
+TEST_CASE("VRAM preserves the distinct 32K block at offset 8000") {
+    Bus bus({});
+    bus.Write16(0x06000000, 0x1111);
+    bus.Write16(0x06008000, 0x2222);
+    bus.Write16(0x06010000, 0x3333);
+    REQUIRE(bus.Read16(0x06000000) == 0x1111);
+    REQUIRE(bus.Read16(0x06008000) == 0x2222);
+    REQUIRE(bus.Read16(0x06010000) == 0x3333);
+    REQUIRE(bus.Read16(0x06018000) == 0x3333);
+    REQUIRE(bus.Read16(0x06028000) == 0x2222);
+}

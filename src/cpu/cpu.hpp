@@ -18,7 +18,9 @@ class Cpu {
     bool SetCpsr(u32 value);
     bool SetSpsr(u32 value);
     
-    explicit Cpu(Bus& bus);
+    explicit Cpu(Bus& bus, bool emulate_bios = false);
+    bool IsHalted() const { return halted_; }
+    void Wake() { halted_ = false; }
 
     void ExecuteBranch(u32 instruction, u32 instruction_address);
     void ExecuteBranchExchange(u32 instruction);
@@ -36,9 +38,12 @@ class Cpu {
     void EnterSoftwareInterruptException(u32 instruction_address);
     void Reset();  // Set up post-BIOS register/mode state.
     u32 Step();    // Fetch-decode-execute one instruction; return elapsed clocks.
+    // A halted CPU can sleep until the coordinator's next hardware event.
+    u32 StepUntilEvent(u32 halt_cycles);
     u64 GetCycles() const { return cycles_; }
 
 private:
+    bool ExecuteThumb(u16 instruction, u32 instruction_address);
     void ExecuteThumbMoveShiftedRegister(u16 instruction);
     void ExecuteThumbBranchExchange(u16 instruction);
     void SaveBankedRegisters(u32 mode);
@@ -58,6 +63,7 @@ private:
     void ChargeInternal(u32 cycles);
     u32 ChargeFetch(u32 address, unsigned width, bool sequential);
     void ChargeRefill(u32 target, unsigned width);
+    bool ServiceInterruptBoundary();
 
     std::array<u32, 16> regs_{};  // r0-r15, where r15 is the program counter.
     u32 cpsr_ = 0;                // Current Program Status Register (flags + mode).
@@ -77,6 +83,10 @@ private:
     u32 spsr_und_ = 0;
 
     Bus& bus_;
+    bool emulate_bios_ = false;
+    bool halted_ = false;
+    u16 bios_wait_mask_ = 0;
+    bool hle_irq_active_ = false;
     u64 cycles_ = 0;
     u32 step_cycles_ = 0;
     u32 prefetch_clocks_ = 0;
@@ -84,6 +94,8 @@ private:
     bool next_fetch_sequential_ = false;
     bool data_sequential_ = false;
     bool step_from_rom_ = false;
+    bool thumb_bl_pending_ = false;
+    u32 thumb_bl_next_address_ = 0;
     u16 last_waitcnt_ = 0;
 
 };

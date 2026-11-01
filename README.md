@@ -1,31 +1,69 @@
-# gba-emu (starter scaffold)
+# gba-emu
 
 A Game Boy Advance emulator built from scratch, one subsystem at a time.
 
 ## Build
 
-    mkdir build && cd build
-    cmake ..
-    cmake --build .
+    cmake -S . -B build
+    cmake --build build
+
+SDL2 2.0.18 or newer development headers are required. CMake fetches the pinned
+Dear ImGui docking source used by the input settings window.
 
 ## Run
 
-    ./gba_emu path/to/rom.gba
+    build/gba_emu path/to/rom.gba
 
-Right now this just loads the ROM into memory and resets the CPU register
-file -- `Cpu::Step()` and the real `Bus` read/write routing are both stubs.
-That's intentional: get this compiling and running first, then fill in one
-piece at a time.
+Press F1 to open the emulator menu, then choose **Input Configuration** to
+select a controller and remap keyboard or controller bindings. Keyboard and the
+selected controller can be used together. Defaults are WASD for movement, J/K
+for A/B, U/I for L/R, Enter for Start, and Right Shift for Select. Press Escape
+to close the game window. To see the pixel pipeline without a ROM:
+
+    build/gba_emu --test-pattern
+
+The test pattern is a solid red Mode 3 framebuffer. For an automated display
+smoke test, pass `--frames 2`. A deterministic run and frame capture needs no display:
+
+mkdir -p /tmp/gba-emu/Zelda/captures
+build/gba_emu roms/Zelda.gba --headless --no-save --frames 600 \
+    --dump-frame /tmp/gba-emu/Zelda/captures/zelda-600.ppm
+
+`--trace` prints the final register state and recent instructions. Unsupported
+BIOS services produce one diagnostic and the trace, rather than entering empty
+BIOS memory. Headless runs require a frame limit.
+
+Cartridge saves use a raw `.sav` file beside the ROM. SRAM, 64/128 KiB Flash,
+and 512 B/8 KiB EEPROM are supported. The emulator loads the file on startup
+and saves changes every five seconds and when it exits. Use `--save-path FILE`
+to choose another location, `--save-type sram|flash64|flash128|eeprom512|eeprom8k`
+for a ROM whose save type cannot be detected, or `--no-save` for an isolated run.
+
+The SDL loop runs at the GBA frame period. The PPU renders bitmap modes 3–5,
+tiled backgrounds in modes 0–2, and regular and affine sprites with layer
+priority. VCOUNT, HBlank, and VBlank status advance with CPU cycles. Rendering
+currently samples memory once per frame, so writes during a scanline do not
+produce raster effects. BIOS-free boot supports the reset, copying, division,
+affine setup, and interrupt wait services needed by Zelda: The Minish Cap.
+Timers, video IRQs, DMA, alpha blending, brightness, WIN0/1 clipping,
+keyboard/controller keypad input, and audio are implemented. Keypad interrupts
+remain pending.
+
+Local ROM checks against pinned mGBA keep per-game logs and temporary captures in `/tmp/gba-emu/<ROM name>/`. Successful checks remove their captures and retain logs. See [docs/zelda-boot.md](docs/zelda-boot.md).
 
 ## Status
 
 - [x] Project skeleton, ROM loading
-- [ ] CPU core (ARM + Thumb instruction sets)
-- [ ] Memory bus (real address region routing)
-- [ ] PPU (video)
-- [ ] Timers, DMA, interrupts
-- [ ] Keypad input
-- [ ] Sound
+- [x] CPU core (ARM + Thumb instruction sets)
+- [x] Memory bus (address region routing)
+- [x] PPU (base bitmap, tile, affine, and OBJ rendering)
+- [x] Video interrupts and immediate/VBlank/HBlank DMA
+- [x] Timers (prescalers, overflow IRQs, and cascading)
+- [x] Keypad input (keyboard and controller remapping)
+- [x] Sound FIFO DMA
+- [ ] Keypad interrupt
+- [x] Sound
+- [x] SRAM, Flash, and EEPROM saves with disk persistence
 
 ## References
 

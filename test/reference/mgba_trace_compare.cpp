@@ -71,10 +71,17 @@ void CompareFixture(const std::string& path, unsigned instructions) {
             CompareValue(path, step, name, cpu.GetRegister(reg), ReferenceRegister(reference, name));
         }
         CompareValue(path, step, "cpsr", cpu.GetCpsr(), ReferenceRegister(reference, "cpsr"));
-        // mGBA exposes the pipeline PC, one ARM word ahead of the next instruction.
-        CompareValue(path, step, "pc", cpu.GetRegister(15), ReferenceRegister(reference, "pc") - 4);
-        CompareValue(path, step, "[03000000]", bus.Read32(0x03000000u),
-                     reference->busRead32(reference, 0x03000000u));
+        // mGBA exposes the pipeline PC ahead of the next instruction by one
+        // instruction width in either state.
+        const u32 pipeline_width = (cpu.GetCpsr() & kThumbFlag) ? 2u : 4u;
+        CompareValue(path, step, "pc", cpu.GetRegister(15),
+                     ReferenceRegister(reference, "pc") - pipeline_width);
+        for (u32 address : {0x03000000u, 0x03000004u, 0x03000008u,
+                            0x03000010u, 0x03000014u, 0x03000018u,
+                            0x03007EF4u, 0x03007EF8u, 0x03007EFCu}) {
+            CompareValue(path, step, "[" + std::to_string(address) + "]",
+                         bus.Read32(address), reference->busRead32(reference, address));
+        }
     }
     reference->deinit(reference);
     std::cout << path << ": " << instructions << " instructions matched mGBA 0.10.5\n";

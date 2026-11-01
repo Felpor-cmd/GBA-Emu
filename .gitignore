@@ -1,4 +1,6 @@
 build/
+build-*/
+__pycache__/
 *.o
 *.obj
 .cache/
@@ -8,3 +10,4 @@ roms/
 .agents
 AGENTS.md
 skills-lock.json
+docs/

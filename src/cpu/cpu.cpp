@@ -22,7 +22,7 @@ ArmKind ClassifyArm(u32 insn) {
         (insn & 0x0FFF0FF0u) == 0x016F0F10u ||
         (insn & 0x0FF000F0u) == 0x01200070u) return ArmKind::Undefined;
     if ((insn & 0x0FC000F0u) == 0x00000090u) return ArmKind::Multiply;
-    if ((insn & 0x0F4000F0u) == 0x00400090u) return ArmKind::LongMultiply;
+    if ((insn & 0x0F8000F0u) == 0x00800090u) return ArmKind::LongMultiply;
     if ((insn & 0x0FBF0FFFu) == 0x010F0000u) return ArmKind::Mrs;
     if ((insn & 0x0FB0FFF0u) == 0x0120F000u) return ArmKind::MsrRegister;
     if ((insn & 0x0FB0F000u) == 0x0320F000u) return ArmKind::MsrImmediate;
@@ -46,7 +46,7 @@ ArmKind ClassifyArm(u32 insn) {
 }
 }  // namespace
 
-Cpu::Cpu(Bus& bus) : bus_(bus) {
+Cpu::Cpu(Bus& bus, bool emulate_bios) : bus_(bus), emulate_bios_(emulate_bios) {
     Reset();
 }
 
@@ -98,11 +98,17 @@ void Cpu::Reset() {
     spsr_abt_ = 0;
     spsr_und_ = 0;
     regs_[13] = 0x03007F00;  // SP: matches the post-BIOS stack pointer (GBATEK: BIOS).
+    irq_r13_r14_[0] = 0x03007FA0u;
+    svc_r13_r14_[0] = 0x03007FE0u;
+    halted_ = hle_irq_active_ = false;
+    bios_wait_mask_ = 0;
     user_system_r13_r14_[0] = regs_[13];
     regs_[15] = 0x08000000;  // instruction_address: cartridge ROM entry point.
     cpsr_ = 0x1F;             // System mode, ARM state, IRQ/FIQ unmasked.
     cycles_ = step_cycles_ = prefetch_clocks_ = prefetch_halfwords_ = 0;
     next_fetch_sequential_ = data_sequential_ = step_from_rom_ = false;
+    thumb_bl_pending_ = false;
+    thumb_bl_next_address_ = 0;
     last_waitcnt_ = bus_.GetWaitcnt();
 }
 
@@ -170,8 +176,21 @@ void Cpu::ChargeRefill(u32 target, unsigned width) {
 }
 
 u32 Cpu::Step() {
+    return StepUntilEvent(4);
+}
+
+u32 Cpu::StepUntilEvent(u32 halt_cycles) {
     step_cycles_ = 0;
     data_sequential_ = false;
+    if (ServiceInterruptBoundary()) {
+        cycles_ += step_cycles_;
+        return step_cycles_;
+    }
+    if (halted_) {
+        const u32 elapsed = halt_cycles ? halt_cycles : 1;
+        cycles_ += elapsed;
+        return elapsed;
+    }
     if (last_waitcnt_ != bus_.GetWaitcnt()) {
         prefetch_halfwords_ = prefetch_clocks_ = 0;
         last_waitcnt_ = bus_.GetWaitcnt();
@@ -187,25 +206,14 @@ u32 Cpu::Step() {
     if (thumb_mode) {
         u16 instruction = bus_.Read16(instruction_address);
         regs_[15] = instruction_address + 2;
-
-        if ((instruction & 0xFF87u) == 0x4700u) {
-            ExecuteThumbBranchExchange(instruction);
+        if (ExecuteThumb(instruction, instruction_address))
             ChargeRefill(regs_[15], (cpsr_ & kThumbFlag) ? 2 : 4);
-            cycles_ += step_cycles_;
-            return step_cycles_;
-        }
-
-        u32 opcode = (instruction >> 11) & 0x3;
-        bool is_move_shifted_register =
-            (instruction & 0xE000u) == 0 && opcode != 0x3;
-        if (is_move_shifted_register) {
-            ExecuteThumbMoveShiftedRegister(instruction);
-        }
         cycles_ += step_cycles_;
         return step_cycles_;
     }
 
     u32 instruction = bus_.Read32(instruction_address);
+    thumb_bl_pending_ = false;
     regs_[15] = instruction_address + 4;
     u32 condition = instruction >> 28;
     if (condition != 0xFu && !CheckCondition(condition, cpsr_)) {
@@ -238,7 +246,7 @@ u32 Cpu::Step() {
         const bool signed_medium = static_cast<s32>(rs) >= -32768 && static_cast<s32>(rs) <= 32767;
         const bool signed_long = static_cast<s32>(rs) >= -8388608 && static_cast<s32>(rs) <= 8388607;
         const bool unsigned_long = kind == ArmKind::LongMultiply &&
-                                   (instruction & (1u << 23)) == 0;
+                                   (instruction & (1u << 22)) == 0;
         const u32 m = unsigned_long
             ? (rs <= 0xFFu ? 1 : rs <= 0xFFFFu ? 2 : rs <= 0xFFFFFFu ? 3 : 4)
             : (signed_short ? 1 : signed_medium ? 2 : signed_long ? 3 : 4);

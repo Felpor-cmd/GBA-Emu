@@ -7,14 +7,14 @@ moving to the next box.
 
 ---
 
-## Phase 0 — Project Foundations ✅ DONE
+## Phase 0 — Project Foundations
 
 - [x] C++ project skeleton with CMake
 - [x] Load a ROM file into memory
 - [x] CPU register file skeleton (`regs_[16]`, `cpsr_`)
 - [x] `Reset()` sets post-BIOS register state (skip real BIOS boot)
 
-## Phase 1 — Memory Bus ✅ DONE
+## Phase 1 — Memory Bus 
 
 - [x] EWRAM read/write
 - [x] IWRAM read/write
@@ -257,32 +257,32 @@ moving to the next box.
 ### 2c. Thumb instruction set
 
 - [x] Move shifted register
-- [ ] Add/subtract
-- [ ] Move/compare/add/subtract immediate
-- [ ] ALU operations
-- [ ] Hi register operations / branch exchange
-- [ ] PC-relative load
-- [ ] Load/store with register offset
-- [ ] Load/store sign-extended byte/halfword
-- [ ] Load/store with immediate offset
-- [ ] Load/store halfword
-- [ ] SP-relative load/store
-- [ ] Load address
-- [ ] Add offset to stack pointer
-- [ ] Push/pop registers
-- [ ] Multiple load/store
-- [ ] Conditional branch
-- [ ] Software interrupt
-- [ ] Unconditional branch
-- [ ] Long branch with link
+- [x] Add/subtract
+- [x] Move/compare/add/subtract immediate
+- [x] ALU operations
+- [x] Hi register operations / branch exchange
+- [x] PC-relative load
+- [x] Load/store with register offset
+- [x] Load/store sign-extended byte/halfword
+- [x] Load/store with immediate offset
+- [x] Load/store halfword
+- [x] SP-relative load/store
+- [x] Load address
+- [x] Add offset to stack pointer
+- [x] Push/pop registers
+- [x] Multiple load/store
+- [x] Conditional branch
+- [x] Software interrupt
+- [x] Unconditional branch
+- [x] Long branch with link
 
 ### 2d. Validate against test ROMs
 
-- [ ] Get the ARM opcode test suite running at all (even if it reports failures)
+- [x] Get the ARM opcode test suite running at all (even if it reports failures)
 - [x] Run basic ARM tests via Catch2 test suite — all current CTest cases pass
-- [ ] Get the full ARM suite passing — pending register shift and other gaps
-- [ ] Get the Thumb opcode test suite running — only "Move shifted register" works currently
-- [ ] Get the full Thumb suite passing — pending full Thumb implementation
+- [x] Get the full ARM suite passing — jsmolka ARM opcode ROM
+- [x] Get the Thumb opcode test suite running — jsmolka Thumb opcode ROM
+- [x] Get the full Thumb suite passing — jsmolka Thumb opcode ROM
 
 ---
 
@@ -291,69 +291,69 @@ moving to the next box.
 You'll want this before or alongside the PPU — testing pixels is much easier
 when you can actually look at them.
 
-- [ ] Add a windowing/graphics library to the build (SDL2 is the most common choice for this)
-- [ ] Open a blank window
-- [ ] Draw one solid test color to the window, proving the pixel pipeline works end to end
-- [ ] Add a fixed-timestep main loop (so the emulator doesn't run at uncapped, unpredictable speed)
+- [x] Add SDL2 to the build
+- [x] Open a window
+- [x] Draw one solid test color to the window, proving the pixel pipeline works end to end
+- [x] Add a fixed-timestep main loop (so the emulator doesn't run at uncapped, unpredictable speed)
 
 ---
 
 ## Phase 4 — PPU (Video)
 
-- [ ] Bitmap mode 3 (simplest possible: one full-screen 16-bit-color framebuffer)
-- [ ] Bitmap mode 4 (paletted framebuffer with page flipping)
-- [ ] Bitmap mode 5 (small paletted framebuffer)
-- [ ] Tile-based background mode 0 (regular tiled backgrounds, up to 4 layers)
-- [ ] Tile-based background mode 1
-- [ ] Tile-based background mode 2 (affine/rotated backgrounds)
-- [ ] Sprite (OBJ) rendering — regular sprites
-- [ ] Sprite (OBJ) rendering — affine (rotated/scaled) sprites
-- [ ] Priority and layering between backgrounds and sprites
+- [x] Bitmap mode 3 (one full-screen 16-bit-color framebuffer)
+- [x] Bitmap mode 4 (paletted framebuffer with page flipping)
+- [x] Bitmap mode 5 (160×128 16-bit-color framebuffer with page flipping, per GBATEK)
+- [x] Tile-based background mode 0 (regular tiled backgrounds, up to 4 layers)
+- [x] Tile-based background mode 1
+- [x] Tile-based background mode 2 (affine/rotated backgrounds)
+- [x] Sprite (OBJ) rendering — regular sprites
+- [x] Sprite (OBJ) rendering — affine (rotated/scaled) sprites
+- [x] Priority and layering between backgrounds and sprites
 - [ ] *(optional polish)* Mosaic effect
-- [ ] *(optional polish)* Alpha blending
-- [ ] *(optional polish)* Windowing (the GBA's clipping-region feature, not an OS window)
+- [x] *(optional polish)* Alpha blending (plus brightness effects)
+- [ ] *(optional polish)* Windowing (WIN0/1 implemented; OBJ window pending)
 
 ---
 
 ## Phase 5 — Interrupts
 
-- [ ] Give `IE`, `IF`, and `IME` (the interrupt control registers) real behavior instead of just sitting in the dumb I/O array
-- [ ] CPU exception entry for IRQ: mode switch, saving `LR`/`SPSR`, jumping to the interrupt vector
-- [ ] Return-from-interrupt handling
-- [ ] VBlank interrupt actually firing at the right time
-- [ ] HBlank interrupt actually firing at the right time
+- [x] Give `IE`, `IF`, and `IME` real behavior, including write-one-to-clear acknowledgement
+- [x] CPU exception entry for IRQ: mode switch, saving `LR`/`SPSR`, jumping to the interrupt vector
+- [x] Return-from-interrupt handling (including a BIOS-free game IRQ dispatcher)
+- [x] VBlank interrupt actually firing at the right time
+- [x] HBlank interrupt actually firing at the right time
 
 ---
 
 ## Phase 6 — Timers
 
-- [ ] One free-running, up-counting timer register
-- [ ] Timer overflow triggering an interrupt
-- [ ] Timer cascading (one timer's overflow feeding the next)
+- [x] One free-running, up-counting timer register (all four timers implemented)
+- [x] Timer overflow triggering an interrupt
+- [x] Timer cascading (one timer's overflow feeding the next)
 
 ---
 
-## Phase 7 — DMA
+## Phase 7 — DMA (general DMA complete; FIFO DMA deferred to sound)
 
-- [ ] Immediate (one-shot) DMA transfer
-- [ ] VBlank-triggered DMA
-- [ ] HBlank-triggered DMA
-- [ ] Sound FIFO DMA (you'll come back to wire this up properly once sound exists)
+- [x] Immediate (one-shot) DMA transfer
+- [x] VBlank-triggered DMA
+- [x] HBlank-triggered DMA
+- [x] Sound FIFO DMA (timer-triggered four-word refills on DMA1/2)
 
 ---
 
 ## Phase 8 — Input
 
-- [ ] Keypad register reflects real keyboard or controller state
+- [x] Keypad register reflects real keyboard or controller state
 - [ ] *(optional)* Keypad interrupt (rarely used by real games, low priority)
 
 ---
 
 ## Phase 9 — Sound
 
-- [ ] The 4 legacy Game-Boy-style channels
-- [ ] The 2 direct sound (DMA-fed) channels
-- [ ] Mixing all channels together and outputting real audio
+- [x] The 4 legacy Game-Boy-style channels
+- [x] The 2 direct sound (DMA-fed) channels
+- [x] Mixing all channels together and outputting real audio
 
 ---
 
@@ -362,9 +362,9 @@ when you can actually look at them.
 Different cartridges used different save chips — SRAM was the simple case
 you already built.
 
-- [ ] Flash memory save support
-- [ ] EEPROM save support
-- [ ] Persist save data to a file on disk between runs (right now everything resets when the program closes)
+- [x] Flash memory save support
+- [x] EEPROM save support
+- [x] Persist save data to a file on disk between runs
 
 ---
 
@@ -387,9 +387,3 @@ correct."
 - [ ] A debugger: breakpoints, memory viewer, disassembler
 - [ ] Real BIOS emulation (replacing the current boot-skip shortcut)
 - [ ] Link cable / multiplayer emulation (even mature emulators often skip this)
-
----
-
-## Notes
-
-2b.1 One honest thing to flag and set aside for now: on real hardware, if Rn or Rm is r15 (the PC), the value read isn't quite the PC you'd expect — a pipelining quirk makes it read as current instruction address + 8. We're not modeling a pipeline, so this'll be slightly wrong if a game ever uses the PC as a math operand. It's a real gap, but a narrow one — safe to note and revisit later rather than solve today.

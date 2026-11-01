@@ -18,18 +18,18 @@ u32 EncodeMultiply(u32 cond, bool accumulate, bool set_flags, u32 rd, u32 rn,
 u32 EncodeLongMultiply(u32 cond, bool accumulate, bool set_flags, bool is_signed,
                        u32 rd_lo, u32 rd_hi, u32 rs, u32 rm) {
     // Long multiply encoding:
-    // bit 22 = 1 (long multiply)
-    // bit 23 = 1 for signed (SMULL/SMLAL), 0 for unsigned (UMULL/UMLAL)
+    // bit 23 = 1 (long multiply)
+    // bit 22 = 1 for signed (SMULL/SMLAL), 0 for unsigned (UMULL/UMLAL)
     // bit 21 = accumulate (1 for UMLAL/SMLAL)
     // bit 20 = S flag
-    // bits 19-16 = RdLo (destination low)
-    // bits 15-12 = RdHi (destination high)
+    // bits 19-16 = RdHi (destination high)
+    // bits 15-12 = RdLo (destination low)
     // bits 11-8 = Rs
     // bits 7-4 = 0x9 (multiply encoding)
     // bits 3-0 = Rm
-    u32 inst = (cond << 28) | (1u << 22) | (accumulate ? 1u : 0u) << 21 |
-               (is_signed ? 1u : 0u) << 23 | (set_flags ? 1u : 0u) << 20 |
-               (rd_lo << 16) | (rd_hi << 12) | (rs << 8) | 0x90u | rm;
+    u32 inst = (cond << 28) | (1u << 23) | (accumulate ? 1u : 0u) << 21 |
+               (is_signed ? 1u : 0u) << 22 | (set_flags ? 1u : 0u) << 20 |
+               (rd_hi << 16) | (rd_lo << 12) | (rs << 8) | 0x90u | rm;
     return inst;
 }
 
@@ -578,4 +578,13 @@ TEST_CASE("Cpu::Step treats UMULL with RdHi equal to Rm as unsupported") {
     REQUIRE(cpu.GetRegister(2) == 4);
     REQUIRE(cpu.GetCpsr() == initial_cpsr);
     REQUIRE(cpu.GetRegister(15) == 0x08000004u);
+}
+TEST_CASE("Cpu::Step decodes unsigned long multiply") {
+    Bus bus(cpu_test::AsRom(0xE0832190u)); // UMULL r2,r3,r0,r1
+    Cpu cpu(bus);
+    cpu.SetRegister(0, 4);
+    cpu.SetRegister(1, 8);
+    cpu.Step();
+    REQUIRE(cpu.GetRegister(2) == 32u);
+    REQUIRE(cpu.GetRegister(3) == 0u);
 }

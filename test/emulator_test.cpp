@@ -1,0 +1,66 @@
+#include <catch2/catch_test_macros.hpp>
+#include "emulator.hpp"
+
+TEST_CASE("CPU ROM writes reach the frame buffer through the shared frame coordinator") {
+    std::vector<u8> rom(0x30, 0);
+    const u32 code[] = {0xE59F0018, 0xE59F1018, 0xE1C010B0, 0xE59F0014,
+        0xE3A0101F, 0xE1C010B0, 0xEAFFFFFE, 0,
+        0x04000000, 0x00000403, 0x06000000};
+    for (unsigned i = 0; i < 11; ++i)
+        for (unsigned byte = 0; byte < 4; ++byte)
+            rom[i * 4 + byte] = static_cast<u8>(code[i] >> (byte * 8));
+    Emulator emulator(std::move(rom));
+    emulator.RunFrame();
+    REQUIRE(emulator.Frames() == 1);
+    REQUIRE(emulator.Pc() == 0x08000018);
+    REQUIRE(emulator.Pixels()[0] == 0xFFFF0000);
+    REQUIRE(emulator.Pixels()[1] == 0xFF000000);
+    emulator.RunFrame();
+    REQUIRE(emulator.Frames() == 2);
+    REQUIRE(emulator.Pixels()[0] == 0xFFFF0000);
+}
+
+TEST_CASE("Timers advance with frame hardware clocks while the CPU is skipped") {
+    Emulator emulator({}, false);
+    emulator.Memory().Write16(0x04000100, 0);
+    emulator.Memory().Write16(0x04000102, 0x0083); // Enable, divide by 1024.
+
+    emulator.RunFrame();
+
+    REQUIRE(emulator.Memory().Read16(0x04000100) == 274);
+}
+
+TEST_CASE("Halted CPU sleeps to the timer event and wakes with IME disabled") {
+    Bus bus({});
+    Cpu cpu(bus, true);
+    cpu.ExecuteSoftwareInterrupt(0xEF020000, 0x08000000); // HLE Halt.
+    REQUIRE(cpu.IsHalted());
+    bus.Write16(0x04000200, 8); // Timer 0 IRQ enabled, IME remains off.
+    bus.Write16(0x04000100, 0xFF00);
+    bus.Write16(0x04000102, 0xC0);
+    const u64 before = cpu.GetCycles();
+    const u32 elapsed = cpu.StepUntilEvent(bus.CyclesToTimerEvent());
+    REQUIRE(elapsed == 256);
+    REQUIRE(cpu.GetCycles() - before == elapsed);
+    bus.AdvanceTimers(elapsed);
+    REQUIRE(bus.InterruptPending());
+    cpu.Step();
+    REQUIRE_FALSE(cpu.IsHalted());
+}
+
+TEST_CASE("Deferred rendering preserves hardware clocks while catching up audio") {
+    Emulator emulator({}, false);
+    auto& bus = emulator.Memory();
+    bus.Write16(0x04000000, 0x0403);
+    bus.Write16(0x06000000, 31);
+    bus.Write16(0x04000100, 0);
+    bus.Write16(0x04000102, 0x83);
+    const auto previous_pixel = emulator.Pixels()[0];
+    emulator.RunFrame(false);
+    emulator.RunFrame(false);
+    REQUIRE(emulator.Frames() == 2);
+    REQUIRE(bus.Read16(0x04000100) == 548);
+    REQUIRE(emulator.Pixels()[0] == previous_pixel);
+    emulator.RenderFrame();
+    REQUIRE(emulator.Pixels()[0] == 0xFFFF0000);
+}

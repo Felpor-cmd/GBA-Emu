@@ -27,6 +27,50 @@ TEST_CASE("ARM SWI enters Supervisor mode and returns with MOVS pc, lr") {
     REQUIRE(cpu.GetRegister(15) == 0x08000004u);
 }
 
+TEST_CASE("Thumb RegisterRamReset clears selected RAM and resumes Thumb code") {
+    Bus bus(cpu_test::AsRom(0xDF01u));
+    Cpu cpu(bus, true);
+    REQUIRE(cpu.SetCpsr(0x3Fu));
+    cpu.SetRegister(0, 1u << 0);
+    cpu.SetRegister(1, 0x12345678u);
+    bus.Write32(0x02000000u, 0xDEADBEEFu);
+    bus.Write32(0x03000000u, 0xCAFEBABEu);
+
+    cpu.Step();
+
+    REQUIRE(bus.Read32(0x02000000u) == 0);
+    REQUIRE(bus.Read32(0x03000000u) == 0xCAFEBABEu);
+    REQUIRE(cpu.GetRegister(1) == 0x12345678u);
+    REQUIRE((cpu.GetCpsr() & kThumbFlag) != 0);
+    REQUIRE(cpu.GetRegister(15) == 0x08000002u);
+}
+
+TEST_CASE("RegisterRamReset preserves the BIOS stack area and nested return addresses") {
+    // PUSH {lr}; SWI 1; POP {pc}, with Zelda's reset flags and stack location.
+    std::vector<u8> rom(8, 0);
+    cpu_test::Put32(rom, 0, 0xDF01B500u);
+    cpu_test::Put32(rom, 4, 0x0000BD00u);
+    Bus bus(std::move(rom));
+    Cpu cpu(bus, true);
+    cpu.SetCpsr(0x3Fu);
+    cpu.SetRegister(0, 0xFEu);
+    cpu.SetRegister(13, 0x03007EF0u);
+    cpu.SetRegister(14, 0x08000101u);
+    bus.Write32(0x03007DFCu, 0xDEADBEEFu);
+    bus.Write32(0x03007E00u, 0x12345678u);
+    bus.Write32(0x03007FFCu, 0x87654321u);
+    cpu.Step();
+    cpu.Step();
+    REQUIRE(bus.Read32(0x03007DFCu) == 0);
+    REQUIRE(bus.Read32(0x03007E00u) == 0x12345678u);
+    REQUIRE(bus.Read32(0x03007FFCu) == 0x87654321u);
+    REQUIRE(bus.Read32(0x03007EECu) == 0x08000101u);
+    REQUIRE(bus.Read16(0x04000000u) == 0x0080u);
+    cpu.Step();
+    REQUIRE(cpu.GetRegister(15) == 0x08000100u);
+    REQUIRE(cpu.GetRegister(13) == 0x03007EF0u);
+}
+
 TEST_CASE("Conditional ARM SWI has no exception side effects when condition fails") {
     Bus bus(cpu_test::AsRom(0x0F000000u));
     Cpu cpu(bus);

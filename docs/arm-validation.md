@@ -25,9 +25,24 @@ The checked-in `test/fixtures/arm/*.gba` files are raw synthetic ROMs. The
 Regenerate them with `scripts/regenerate_arm_fixtures.sh` after installing
 `binutils-arm-none-eabi`; CI checks that regeneration reproduces the binaries.
 
+## Thumb validation
+
+`cpu_test_thumb_families.cpp` checks every ARMv4T Thumb format through
+`Cpu::Step()`: arithmetic flags and shift boundaries, high registers and state
+exchange, aligned and unaligned transfers, stack and multiple transfers,
+branches, BL, exceptions, and instruction clocks. The assembled
+`thumb_arithmetic` and `thumb_memory` ROMs also run in the pinned mGBA trace
+job. Its PC comparison subtracts the current instruction width from mGBA's
+pipeline PC; the memory comparison includes IWRAM data and stack words.
+
+An ARM7TDMI STM with the base later in its register list stores the updated
+base, per GBATEK and NanoBoyAdvance. mGBA 0.10.5 stores the old base for this
+unpredictable operand combination, so the reference fixture uses a base-first
+overlap while the unit test covers the later-base behavior.
+
 To run the trace comparator locally, build [mGBA 0.10.5](https://github.com/mgba-emu/mgba/releases/tag/0.10.5)
 as a shared library, install it to a private prefix, then configure with
-`-DMGBA_ROOT=/path/to/prefix` and run `ctest --test-dir build -R mgba_arm_`.
+`-DMGBA_ROOT=/path/to/prefix` and run `ctest --test-dir build -R '^mgba_(arm|thumb)_'`.
 The comparator checks registers, CPSR, PC, and IWRAM after each instruction;
 it prints the first differing field. It uses mGBA's [C core API](https://github.com/mgba-emu/mgba/blob/0.10.5/include/mgba/core/core.h)
 because mGBA 0.10.5 does not offer a command-line script loader.
@@ -36,3 +51,21 @@ Clock expectations come from the [ARM7TDMI-S cycle tables](https://documentation
 and [GBATEK's WAITCNT/Game Pak timing rules](https://mgba-emu.github.io/gbatek/).
 Reference traces validate architectural state; they are not treated as clock
 oracles.
+
+## External opcode ROMs
+
+CTest runs the ARM and Thumb opcode ROMs from `jsmolka/gba-tests` at pinned
+upstream commit `a7113b67e63f83a9b321696ddd7042ccfad6c881`. The original MIT
+license and SHA256 checksums are kept beside the ROMs in
+`test/fixtures/opcode/jsmolka/`. The runner executes the suite's original CPU
+code up to its `eval` loop, validates the loop signature, then reads the
+upstream result register (`r12` for ARM, `r7` for Thumb). A zero result means
+the full suite passed; nonzero values identify the first failed test. These
+ROM tests are registered as `opcode_arm` and `opcode_thumb` in CTest and run in
+the regular CI job. Run them locally with
+`ctest --test-dir build -R '^opcode_(arm|thumb)$' --output-on-failure`.
+
+The suite caught ARM7TDMI behavior gaps in register-specified shifts, PC reads
+and stores, long multiply encoding, odd halfword loads, overlapping writeback,
+unaligned SWP, and unaligned block transfers. Resolve upstream expectations
+against GBATEK when descriptions disagree.
