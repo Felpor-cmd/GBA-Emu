@@ -46,7 +46,7 @@ TEST_CASE("BIOS reads outside BIOS execution expose the last prefetched opcode")
     REQUIRE(cpu.GetRegister(15) == 0x08000000u);
     REQUIRE(bus.Read32(0) == 0x08000000u); // Prefetch at 0x14, not BIOS word at zero.
     REQUIRE(bus.Read8(2) == 0x00u);
-    REQUIRE(bus.Read32(0x4000) == 0);
+    REQUIRE(bus.Read32(0x4000) == 0x08000000u); // Unmapped memory exposes the CPU open bus.
 }
 
 TEST_CASE("POSTFLG latches and HALTCNT sleeps until an enabled interrupt") {

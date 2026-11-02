@@ -31,10 +31,44 @@ void Bus::LatchBiosPrefetch(u32 address, bool thumb) {
     }
 }
 
+void Bus::LatchOpenBusPrefetch(u32 address, bool thumb) {
+    open_bus_execution_address_ = address;
+    open_bus_thumb_ = thumb;
+    open_bus_prefetch_pending_ = true;
+    if (address < kBiosSize) OpenBusPrefetch();
+}
+
+u32 Bus::OpenBusPrefetch() const {
+    if (!open_bus_prefetch_pending_) return open_bus_prefetch_;
+    // Clear before reading the upcoming opcode: if that address is also
+    // unmapped, it must see the previous bus value instead of recursing.
+    open_bus_prefetch_pending_ = false;
+    const u32 address = open_bus_execution_address_;
+    const bool thumb = open_bus_thumb_;
+    if (!thumb) {
+        open_bus_prefetch_ = Read32(address + 8u);
+        return open_bus_prefetch_;
+    }
+    const u16 next = Read16(address + 4u);
+    const u8 region = static_cast<u8>(address >> 24);
+    if (region == 0x00u || region == 0x07u) {
+        // BIOS and OAM have a 32-bit instruction bus. The two halves come
+        // from adjacent prefetches, according to the instruction alignment.
+        const u16 low = (address & 2u) ? Read16(address + 2u) : next;
+        const u16 high = (address & 2u) ? next : Read16(address + 6u);
+        open_bus_prefetch_ = static_cast<u32>(low) | (static_cast<u32>(high) << 16);
+    } else {
+        // Cartridge ROM and external RAM use a 16-bit instruction bus.
+        open_bus_prefetch_ = static_cast<u32>(next) | (static_cast<u32>(next) << 16);
+    }
+    return open_bus_prefetch_;
+}
+
 u8 Bus::Read8(u32 address) const {
     switch (address >> 24){
         case 0x00:
-            if (address >= kBiosSize) return 0;
+            if (address >= kBiosSize)
+                return static_cast<u8>(OpenBusPrefetch() >> ((address & 3u) * 8));
             if (has_bios_ && !cpu_in_bios_)
                 return static_cast<u8>(bios_prefetch_ >> ((address & 3u) * 8));
             return bios_[address];
@@ -74,7 +108,7 @@ u8 Bus::Read8(u32 address) const {
 
         case 0x0E: return backup_.ReadByte(address, hardware_cycles_);
 
-        default: return 0;
+        default: return static_cast<u8>(OpenBusPrefetch() >> ((address & 3u) * 8));
     }
 }
 

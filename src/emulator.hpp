@@ -22,6 +22,7 @@ public:
     u64 Swi12Calls() const { return cpu_.Swi12Calls(); }
     struct FrameTiming { double hardware_ms = 0, render_ms = 0; };
     void EnableTimingDiagnostics() { timing_diagnostics_ = true; }
+    void EnableTrace() { trace_enabled_ = true; }
     FrameTiming LastFrameTiming() const { return frame_timing_; }
 
 private:
@@ -34,5 +35,6 @@ private:
     s64 cycle_debt_ = 0;
     bool run_cpu_ = true;
     bool timing_diagnostics_ = false;
+    bool trace_enabled_ = false;
     FrameTiming frame_timing_{};
 };

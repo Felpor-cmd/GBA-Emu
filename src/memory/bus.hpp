@@ -58,6 +58,7 @@ public:
     // it, reads expose the last prefetched BIOS instruction.
     void SetCpuExecutionAddress(u32 address) { cpu_in_bios_ = has_bios_ && address < kBiosSize; }
     void LatchBiosPrefetch(u32 address, bool thumb);
+    void LatchOpenBusPrefetch(u32 address, bool thumb);
     bool HaltRequested() const { return halt_requested_; }
     void ClearHaltRequest() { halt_requested_ = false; }
     BackupType GetBackupType() const { return backup_.Type(); }
@@ -83,6 +84,11 @@ private:
     bool cpu_in_bios_ = false;
     bool halt_requested_ = false;
     u32 bios_prefetch_ = 0;
+    u32 OpenBusPrefetch() const;
+    mutable u32 open_bus_prefetch_ = 0;
+    mutable bool open_bus_prefetch_pending_ = false;
+    u32 open_bus_execution_address_ = 0;
+    bool open_bus_thumb_ = false;
     struct Dma { u32 source = 0, destination = 0, reload = 0; bool enabled = false; };
     std::array<Dma, 4> dma_{};
     struct Timer {

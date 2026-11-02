@@ -2,6 +2,33 @@
 
 #include "cpu_test_helpers.hpp"
 
+TEST_CASE("Thumb ROM reads from unmapped memory expose the prefetched halfword") {
+    // LDRB r0, [r1, #1]; the instruction at PC+4 supplies both halves of
+    // the open bus while Thumb code executes from cartridge ROM.
+    std::vector<u8> rom{0x48, 0x78, 0xC0, 0x46, 0x34, 0x12, 0xC0, 0x46};
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    cpu.SetCpsr(0x3Fu);
+    cpu.SetRegister(1, 0xE55EC006u);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(0) == 0x12u);
+}
+
+TEST_CASE("ARM ROM reads from unmapped memory expose the prefetched word") {
+    auto rom = cpu_test::AsRom(cpu_test::EncodeSingleDataTransfer(0xE, true, true, 1, 0, 1));
+    rom.resize(12);
+    cpu_test::Put32(rom, 8, 0x12345678u);
+    Bus bus(std::move(rom));
+    Cpu cpu(bus);
+    cpu.SetRegister(1, 0xE55EC006u);
+
+    cpu.Step();
+
+    REQUIRE(cpu.GetRegister(0) == 0x12u);
+}
+
 TEST_CASE("ARM LDR unaligned word load rotates according to address bits [1:0]") {
     Bus bus(cpu_test::AsRom(cpu_test::EncodeSingleDataTransfer(0xE, true, false, 1, 2, 1)));
     Cpu cpu(bus);

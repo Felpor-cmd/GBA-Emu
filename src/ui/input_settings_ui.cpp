@@ -175,6 +175,19 @@ void InputSettingsUi::DrawSettings(InputManager& input) {
     ImGui::SameLine(); ImGui::TextDisabled("Keyboard + controller");
     ImGui::Separator();
 
+    const unsigned speed = input.Config().FastForwardSpeed();
+    const std::string speed_label = std::to_string(speed) + "x";
+    ImGui::SetNextItemWidth(150);
+    if (ImGui::BeginCombo("Tab fast-forward speed", speed_label.c_str())) {
+        for (const unsigned choice : {1u, 2u, 3u, 5u, 10u}) {
+            const std::string label = std::to_string(choice) + "x";
+            if (ImGui::Selectable(label.c_str(), choice == speed)) input.SetFastForwardSpeed(choice);
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::TextDisabled("Hold Tab to use the selected speed; actual speed depends on the game and computer.");
+    ImGui::Separator();
+
     const auto& devices = input.Devices();
     if (devices.empty()) {
         ImGui::Text("Controller"); ImGui::SameLine(); ImGui::TextDisabled("No controller connected");

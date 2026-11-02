@@ -18,23 +18,26 @@ Press F1 to open the emulator menu, then choose **Input Configuration** to
 select a controller and remap keyboard or controller bindings. Keyboard and the
 selected controller can be used together. Defaults are WASD for movement, J/K
 for A/B, U/I for L/R, Enter for Start, and Right Shift for Select. Press Escape
-to close the game window. To see the pixel pipeline without a ROM:
+to close the game window. Hold Tab to fast-forward; select 1x, 2x, 3x, 5x, or
+10x in the F1 input menu. Actual speed depends on the game and computer. To see
+the pixel pipeline without a ROM:
 
     build/gba_emu --test-pattern
 
 The test pattern is a solid red Mode 3 framebuffer. For an automated display
 smoke test, pass `--frames 2`. A deterministic run and frame capture needs no display:
 
-mkdir -p /tmp/gba-emu/Zelda/captures
-build/gba_emu roms/Zelda.gba --headless --no-save --frames 600 \
-    --dump-frame /tmp/gba-emu/Zelda/captures/zelda-600.ppm
+    mkdir -p /tmp/gba-emu/Zelda/captures
+    build/gba_emu roms/Zelda.gba --headless --no-save --frames 600 \
+        --dump-frame /tmp/gba-emu/Zelda/captures/zelda-600.ppm
 
-# Full power-on boot, including the BIOS startup screen:
-build/gba_emu roms/Zelda.gba --bios /home/arch/Downloads/gba_bios.bin
+Full power-on boot, including the BIOS startup screen:
+
+    build/gba_emu roms/Zelda.gba --bios /home/arch/Downloads/gba_bios.bin
 
 `--trace` prints the final register state and recent instructions. Unsupported
-BIOS services produce one diagnostic and the trace, rather than entering empty
-BIOS memory. Headless runs require a frame limit.
+BIOS services produce a diagnostic and final register state. Headless runs
+require a frame limit.
 
 Cartridge saves use a raw `.sav` file beside the ROM. SRAM, 64/128 KiB Flash,
 and 512 B/8 KiB EEPROM are supported. The emulator loads the file on startup
@@ -65,6 +68,9 @@ compatible ROMs with pinned mGBA in both boot modes, configure
 `MGBA_ROOT`, `GBA_BIOS_PATH`, and the semicolon-separated
 `GBA_BOOT_REPLAY_ROMS` CMake variable. CMake makes one BIOS and one BIOS-free
 replay check per ROM, using its adjacent `.sav` file when present.
+`GBA_BOOT_REPLAY_FRAMES` defaults to `2500,6000`, checking both file selection
+and later gameplay. Set it to other checkpoints for a compatible game with
+different scene timing. Verification copies saves to scratch files.
 
 ## Status
 

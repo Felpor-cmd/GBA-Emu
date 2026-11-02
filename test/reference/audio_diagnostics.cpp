@@ -121,11 +121,13 @@ int main(int argc, char** argv) {
         if (frames < 8 || frames > 36000) throw std::runtime_error("FRAMES must be 8..36000");
         bool reference = false;
         bool events = false;
+        std::string bios_path;
         unsigned start = 180;
         for (int i = 4; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--reference") reference = true;
             else if (arg == "--events") events = true;
+            else if (arg == "--bios" && i + 1 < argc) bios_path = argv[++i];
             else if (arg == "--start" && i + 1 < argc) start = static_cast<unsigned>(std::stoul(argv[++i]));
             else throw std::runtime_error("Unknown option: " + arg);
         }
@@ -150,7 +152,13 @@ int main(int argc, char** argv) {
             rom.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
         }
         if (!reference) {
-            Emulator emu(std::move(rom));
+            std::vector<u8> bios;
+            if (!bios_path.empty()) {
+                std::ifstream input(bios_path, std::ios::binary);
+                if (!input) throw std::runtime_error("Cannot read BIOS");
+                bios.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+            }
+            Emulator emu(std::move(rom), true, std::move(bios));
             emu.EnableTimingDiagnostics();
             std::ofstream event_log;
             if (events) {
@@ -194,9 +202,13 @@ int main(int argc, char** argv) {
             mCoreInitConfig(core, nullptr);
             VFile* file = fixture ? VFileMemChunk(rom.data(), rom.size()) : VFileOpen(argv[1], O_RDONLY);
             if (!file || !core->loadROM(core, file)) throw std::runtime_error("mGBA ROM load failed");
+            if (!bios_path.empty()) {
+                VFile* bios = VFileOpen(bios_path.c_str(), O_RDONLY);
+                if (!bios || !core->loadBIOS(core, bios, 0)) throw std::runtime_error("mGBA BIOS load failed");
+            }
             std::array<color_t, 240 * 160> pixels{};
             core->setVideoBuffer(core, pixels.data(), 240);
-            core->opts.skipBios = true;
+            core->opts.skipBios = bios_path.empty();
             core->setAudioBufferSize(core, 4096);
             core->reset(core);
             std::ofstream event_log;

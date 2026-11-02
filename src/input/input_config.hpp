@@ -38,10 +38,13 @@ public:
 
     bool Load(const std::string& path);
     bool Save(const std::string& path) const;
+    unsigned FastForwardSpeed() const { return fast_forward_speed_; }
+    void SetFastForwardSpeed(unsigned speed);
 
 private:
     using Bindings = std::array<InputBinding, kGbaButtonCount>;
     std::array<InputBinding, kGbaButtonCount> keyboard_{};
     std::unordered_map<std::string, Bindings> controllers_;
     std::string selected_controller_guid_;
+    unsigned fast_forward_speed_ = 2;
 };

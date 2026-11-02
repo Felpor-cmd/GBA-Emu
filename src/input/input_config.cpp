@@ -94,6 +94,11 @@ InputConfig::InputConfig() {
     keyboard_[Index(GbaButton::L)] = Key(SDL_SCANCODE_U);
 }
 
+void InputConfig::SetFastForwardSpeed(unsigned speed) {
+    if (speed == 1 || speed == 2 || speed == 3 || speed == 5 || speed == 10)
+        fast_forward_speed_ = speed;
+}
+
 const InputBinding& InputConfig::KeyboardBinding(GbaButton button) const {
     return keyboard_[Index(button)];
 }
@@ -136,6 +141,12 @@ bool InputConfig::Load(const std::string& path) {
             loaded.selected_controller_guid_ = fields[1];
             continue;
         }
+        if (fields[0] == "fast_forward_speed" && fields.size() == 2) {
+            int speed = 0;
+            if (ParseInt(fields[1], speed) && speed > 0)
+                loaded.SetFastForwardSpeed(static_cast<unsigned>(speed));
+            continue;
+        }
         if (fields[0] == "keyboard" && fields.size() == 6) {
             int button = 0;
             InputBinding binding;
@@ -165,6 +176,7 @@ bool InputConfig::Save(const std::string& path) const {
         std::ofstream output(file, std::ios::trunc);
         if (!output) return false;
         output << "gba-input-config-v1\nselected|" << selected_controller_guid_ << '\n';
+        output << "fast_forward_speed|" << fast_forward_speed_ << '\n';
         for (unsigned i = 0; i < kGbaButtonCount; ++i)
             WriteBinding(output, "keyboard", {}, i, keyboard_[i], false);
 

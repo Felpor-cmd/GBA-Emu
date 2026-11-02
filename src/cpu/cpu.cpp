@@ -214,6 +214,7 @@ u32 Cpu::StepUntilEvent(u32 halt_cycles) {
     u32 instruction_address = regs_[15];
     bus_.SetCpuExecutionAddress(instruction_address);
     bus_.LatchBiosPrefetch(instruction_address, thumb_mode);
+    bus_.LatchOpenBusPrefetch(instruction_address, thumb_mode);
     step_from_rom_ = (instruction_address >> 24) >= 8 &&
                      (instruction_address >> 24) <= 13;
     const unsigned width = thumb_mode ? 2 : 4;

@@ -10,9 +10,9 @@ void Emulator::RunFrame(bool render_frame) {
     const auto begin = timing_diagnostics_ ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     cycle_debt_ += Ppu::kCyclesPerFrame;
     while (cycle_debt_ > 0) {
-        const u32 pc = cpu_.GetRegister(15), cpsr = cpu_.GetCpsr();
-        const u32 sp = cpu_.GetRegister(13);
-        if (run_cpu_ && !cpu_.IsHalted()) {
+        if (trace_enabled_ && run_cpu_ && !cpu_.IsHalted()) {
+            const u32 pc = cpu_.GetRegister(15), cpsr = cpu_.GetCpsr();
+            const u32 sp = cpu_.GetRegister(13);
             trace_[trace_count_++ % trace_.size()] = {pc,
                 (cpsr & kThumbFlag) ? bus_.Read16(pc) : bus_.Read32(pc), cpsr,
                 sp, cpu_.GetRegister(14), bus_.Read32(sp)};

@@ -206,6 +206,7 @@ set(GBA_ZELDA_ROM "" CACHE FILEPATH "Optional local Zelda ROM (compatibility ali
 set(GBA_BIOS_PATH "" CACHE FILEPATH "Optional local 16 KiB GBA BIOS for full boot replay checks")
 set(GBA_BOOT_REPLAY_ROMS "" CACHE STRING "Semicolon-separated local ROMs compatible with the file-select input replay")
 set(GBA_BOOT_REPLAY_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/file_select_start_a.input" CACHE FILEPATH "Input replay shared by compatible boot ROMs")
+set(GBA_BOOT_REPLAY_FRAMES "2500,6000" CACHE STRING "Frame checkpoints for file selection and gameplay in compatible boot replays")
 if(GBA_VERIFY_ROMS OR GBA_ZELDA_ROM)
     if(NOT DEFINED MGBA_ROOT)
         message(FATAL_ERROR "Local ROM verification requires MGBA_ROOT for reference captures")
@@ -261,7 +262,7 @@ if(GBA_BOOT_REPLAY_ROMS)
         get_filename_component(_boot_rom_dir "${_boot_rom_abs}" DIRECTORY)
         get_filename_component(_boot_rom_stem "${_boot_rom_abs}" NAME_WE)
         set(_boot_save "${_boot_rom_dir}/${_boot_rom_stem}.sav")
-        set(_replay_args --frames 2500 --alignment-window 20 --min-colors 20
+        set(_replay_args --frames "${GBA_BOOT_REPLAY_FRAMES}" --alignment-window 20 --min-colors 20
             --replay-input "${GBA_BOOT_REPLAY_INPUT}" --expect-swi-12)
         if(EXISTS "${_boot_save}")
             list(APPEND _replay_args --save "${_boot_save}")

@@ -33,6 +33,7 @@ public:
     void BeginRebind(GbaButton button, bool controller);
     void CancelRebind();
     void ClearBinding(GbaButton button, bool controller);
+    void SetFastForwardSpeed(unsigned speed) { config_.SetFastForwardSpeed(speed); Save(); }
     bool IsRebinding() const { return rebinding_; }
     GbaButton RebindingButton() const { return rebind_button_; }
     bool RebindingController() const { return rebind_controller_; }

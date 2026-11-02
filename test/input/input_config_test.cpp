@@ -51,3 +51,16 @@ TEST_CASE("Unknown input config versions leave default mappings intact") {
     REQUIRE(config.KeyboardBinding(GbaButton::A).code == SDL_SCANCODE_J);
     std::filesystem::remove(path);
 }
+
+TEST_CASE("Fast-forward speed persists in the existing input config") {
+    const auto path = std::filesystem::temp_directory_path() / "gba-speed-config-test.ini";
+    InputConfig config;
+    REQUIRE(config.FastForwardSpeed() == 2);
+    config.SetFastForwardSpeed(5);
+    config.SetFastForwardSpeed(7); // Unsupported values leave the selection intact.
+    REQUIRE(config.Save(path.string()));
+    InputConfig loaded;
+    REQUIRE(loaded.Load(path.string()));
+    REQUIRE(loaded.FastForwardSpeed() == 5);
+    std::filesystem::remove(path);
+}

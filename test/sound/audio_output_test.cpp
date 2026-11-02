@@ -1,4 +1,6 @@
 #include <array>
+#include <algorithm>
+#include <cstdlib>
 #include <catch2/catch_test_macros.hpp>
 #include "memory/bus.hpp"
 #include "ppu/ppu.hpp"
@@ -72,4 +74,53 @@ TEST_CASE("Pacing frames from audio demand handles a faster device without chang
     REQUIRE(output.Underruns() == 0);
     REQUIRE(bus.DroppedAudioSamples() == 0);
     REQUIRE(output.OutputFrames() == 300 * 816);
+}
+
+TEST_CASE("Fast-forward audio consumes emulated samples faster and recovers at normal speed") {
+    Bus bus({});
+    AudioOutput output(bus);
+    bus.AdvanceTimers(Ppu::kCyclesPerFrame * 12);
+    std::array<s16, 480 * 2> samples{};
+    output.SetPlaybackSpeedPercent(200);
+    const u32 before = bus.QueuedAudioSamples();
+    output.Fill(samples.data(), 480);
+    const u32 consumed_fast = before - bus.QueuedAudioSamples();
+    REQUIRE(consumed_fast >= 655);
+    REQUIRE(consumed_fast <= 657);
+    output.SetPlaybackSpeedPercent(100);
+    output.Fill(samples.data(), 480);
+    REQUIRE(bus.QueuedAudioSamples() <= 2048);
+}
+
+TEST_CASE("Fast-forward audio handles the 10x setting without dropping samples") {
+    Bus bus({});
+    AudioOutput output(bus);
+    bus.AdvanceTimers(Ppu::kCyclesPerFrame * 24);
+    std::array<s16, 480 * 2> samples{};
+    output.SetPlaybackSpeedPercent(1000);
+    const u32 before = bus.QueuedAudioSamples();
+    output.Fill(samples.data(), 480);
+    const u32 consumed = before - bus.QueuedAudioSamples();
+    REQUIRE(consumed >= 3277);
+    REQUIRE(consumed <= 3280);
+    REQUIRE(output.Underruns() == 0);
+    REQUIRE(bus.DroppedAudioSamples() == 0);
+}
+
+TEST_CASE("Normal-speed square audio does not clip during interpolation") {
+    Bus bus({});
+    bus.Write16(0x04000084, 0);
+    bus.Write16(0x04000084, 0x80);
+    bus.Write16(0x04000088, 0x0200);
+    bus.Write16(0x04000082, 2);
+    bus.Write16(0x04000080, 0x1177);
+    bus.Write16(0x04000062, 0xF080);
+    bus.Write16(0x04000064, 0x8600);
+    bus.AdvanceTimers(Ppu::kCyclesPerFrame * 5);
+    AudioOutput output(bus);
+    std::array<s16, 1024 * 2> samples{};
+    output.Fill(samples.data(), 1024);
+    const auto peak = std::max_element(samples.begin(), samples.end(),
+        [](s16 a, s16 b) { return std::abs(static_cast<int>(a)) < std::abs(static_cast<int>(b)); });
+    REQUIRE(std::abs(static_cast<int>(*peak)) < 30000);
 }
