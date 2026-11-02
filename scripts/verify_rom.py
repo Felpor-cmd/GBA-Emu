@@ -7,6 +7,7 @@ import argparse
 import hashlib
 from pathlib import Path
 import subprocess
+import shutil
 
 
 WIDTH, HEIGHT = 240, 160
@@ -48,6 +49,10 @@ def main():
     parser.add_argument("--min-colors", type=int, default=1,
                         help="minimum unique colors in each emulator capture")
     parser.add_argument("--sha256", help="optional expected ROM SHA-256")
+    parser.add_argument("--bios", type=Path, help="16 KiB BIOS for full power-on boot")
+    parser.add_argument("--save", type=Path, help="save copied to scratch files for both emulators")
+    parser.add_argument("--replay-input", type=Path, help="zero-based input ranges")
+    parser.add_argument("--expect-swi-12", action="store_true")
     args = parser.parse_args()
 
     if args.alignment_window < 0 or args.min_colors < 1:
@@ -70,13 +75,28 @@ def main():
         expected = captures_dir / f"mgba-{label}-{frame_count}.ppm"
         emulator_log = logs_dir / f"emulator-{frame_count}.log"
         reference_log = logs_dir / f"mgba-{frame_count}.log"
+        emulator_save = logs_dir / f"emulator-{frame_count}.sav"
+        reference_save = logs_dir / f"mgba-{frame_count}.sav"
+        if args.save:
+            shutil.copyfile(args.save, emulator_save)
+            shutil.copyfile(args.save, reference_save)
+        emulator_command = [str(args.emulator.resolve()), str(args.rom.resolve()), "--headless",
+                            "--frames", str(frame_count), "--dump-frame", str(actual)]
+        emulator_command += ["--save-path", str(emulator_save)] if args.save else ["--no-save"]
+        if args.bios:
+            emulator_command += ["--bios", str(args.bios.resolve())]
+        if args.replay_input:
+            emulator_command += ["--replay-input", str(args.replay_input.resolve())]
+        if args.expect_swi_12:
+            emulator_command.append("--expect-swi-12")
         with emulator_log.open("wb") as log:
-            subprocess.run([str(args.emulator.resolve()), str(args.rom.resolve()), "--headless",
-                            "--no-save", "--frames", str(frame_count), "--dump-frame", str(actual)],
-                           check=True, stdout=log, stderr=subprocess.STDOUT)
+            subprocess.run(emulator_command, check=True, stdout=log, stderr=subprocess.STDOUT)
         with reference_log.open("wb") as log:
             subprocess.run([str(args.reference.resolve()), str(args.rom.resolve()),
-                            str(frame_count), str(expected), str(args.alignment_window)],
+                            str(frame_count), str(expected), str(args.alignment_window),
+                            str(args.bios.resolve()) if args.bios else "-",
+                            str(reference_save) if args.save else "-",
+                            str(args.replay_input.resolve()) if args.replay_input else "-"],
                            check=True, stdout=log, stderr=subprocess.STDOUT)
         actual_pixels = pixels(actual)
         candidates = [(expected, frame_count)] + [

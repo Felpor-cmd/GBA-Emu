@@ -106,10 +106,20 @@ void Cpu::Reset() {
     regs_[15] = 0x08000000;  // instruction_address: cartridge ROM entry point.
     cpsr_ = 0x1F;             // System mode, ARM state, IRQ/FIQ unmasked.
     cycles_ = step_cycles_ = prefetch_clocks_ = prefetch_halfwords_ = 0;
+    swi12_calls_ = 0;
     next_fetch_sequential_ = data_sequential_ = step_from_rom_ = false;
     thumb_bl_pending_ = false;
     thumb_bl_next_address_ = 0;
     last_waitcnt_ = bus_.GetWaitcnt();
+    bus_.SetCpuExecutionAddress(regs_[15]);
+}
+
+void Cpu::PowerOn() {
+    Reset();
+    if (!bus_.HasBios()) return;
+    regs_[15] = 0;
+    cpsr_ = 0xD3u; // ARM Supervisor, IRQ and FIQ masked.
+    bus_.SetCpuExecutionAddress(0);
 }
 
 u32 Cpu::ChargeFetch(u32 address, unsigned width, bool sequential) {
@@ -182,7 +192,12 @@ u32 Cpu::Step() {
 u32 Cpu::StepUntilEvent(u32 halt_cycles) {
     step_cycles_ = 0;
     data_sequential_ = false;
+    if (bus_.HaltRequested()) {
+        halted_ = true;
+        bus_.ClearHaltRequest();
+    }
     if (ServiceInterruptBoundary()) {
+        bus_.SetCpuExecutionAddress(regs_[15]);
         cycles_ += step_cycles_;
         return step_cycles_;
     }
@@ -197,6 +212,8 @@ u32 Cpu::StepUntilEvent(u32 halt_cycles) {
     }
     bool thumb_mode = (cpsr_ & kThumbFlag) != 0;
     u32 instruction_address = regs_[15];
+    bus_.SetCpuExecutionAddress(instruction_address);
+    bus_.LatchBiosPrefetch(instruction_address, thumb_mode);
     step_from_rom_ = (instruction_address >> 24) >= 8 &&
                      (instruction_address >> 24) <= 13;
     const unsigned width = thumb_mode ? 2 : 4;
@@ -208,6 +225,7 @@ u32 Cpu::StepUntilEvent(u32 halt_cycles) {
         regs_[15] = instruction_address + 2;
         if (ExecuteThumb(instruction, instruction_address))
             ChargeRefill(regs_[15], (cpsr_ & kThumbFlag) ? 2 : 4);
+        bus_.SetCpuExecutionAddress(regs_[15]);
         cycles_ += step_cycles_;
         return step_cycles_;
     }
@@ -217,6 +235,7 @@ u32 Cpu::StepUntilEvent(u32 halt_cycles) {
     regs_[15] = instruction_address + 4;
     u32 condition = instruction >> 28;
     if (condition != 0xFu && !CheckCondition(condition, cpsr_)) {
+        bus_.SetCpuExecutionAddress(regs_[15]);
         cycles_ += step_cycles_;
         return step_cycles_;
     }
@@ -262,6 +281,7 @@ u32 Cpu::StepUntilEvent(u32 halt_cycles) {
     if (regs_[15] != instruction_address + 4) {
         ChargeRefill(regs_[15], (cpsr_ & kThumbFlag) ? 2 : 4);
     }
+    bus_.SetCpuExecutionAddress(regs_[15]);
     cycles_ += step_cycles_;
     return step_cycles_;
 }

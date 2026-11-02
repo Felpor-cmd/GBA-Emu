@@ -54,6 +54,12 @@ public:
     bool InterruptPending() const { return (Read16(0x04000200) & Read16(0x04000202)) != 0; }
     bool IrqEnabled() const { return (Read16(0x04000208) & 1u) && InterruptPending(); }
     bool HasBios() const { return has_bios_; }
+    // The BIOS data bus is readable only while executing BIOS code. Outside
+    // it, reads expose the last prefetched BIOS instruction.
+    void SetCpuExecutionAddress(u32 address) { cpu_in_bios_ = has_bios_ && address < kBiosSize; }
+    void LatchBiosPrefetch(u32 address, bool thumb);
+    bool HaltRequested() const { return halt_requested_; }
+    void ClearHaltRequest() { halt_requested_ = false; }
     BackupType GetBackupType() const { return backup_.Type(); }
     void ConfigureBackup(BackupType type) { backup_.Configure(type); }
     void LoadBackup(const std::vector<u8>& bytes) { backup_.Load(bytes); }
@@ -74,6 +80,9 @@ private:
     Sound sound_{};
     u16 waitcnt_ = 0;
     bool has_bios_ = false;
+    bool cpu_in_bios_ = false;
+    bool halt_requested_ = false;
+    u32 bios_prefetch_ = 0;
     struct Dma { u32 source = 0, destination = 0, reload = 0; bool enabled = false; };
     std::array<Dma, 4> dma_{};
     struct Timer {

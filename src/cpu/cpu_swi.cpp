@@ -4,14 +4,16 @@
 #include <string>
 #include <cmath>
 #include <sstream>
+#include <array>
 
 void Cpu::ExecuteSoftwareInterrupt(u32 instruction, u32 instruction_address) {
+    const bool thumb = (cpsr_ & kThumbFlag) != 0;
+    const u32 swi = thumb ? instruction & 0xFFu : (instruction >> 16) & 0xFFu;
+    if (swi == 0x12) ++swi12_calls_;
     if (!emulate_bios_ || bus_.HasBios()) {
         EnterSoftwareInterruptException(instruction_address);
         return;
     }
-    const bool thumb = (cpsr_ & kThumbFlag) != 0;
-    const u32 swi = thumb ? instruction & 0xFFu : (instruction >> 16) & 0xFFu;
     if (!bus_.HasBios() && swi == 1) { // RegisterRamReset
         bus_.ResetMemory(regs_[0]);
         regs_[15] = instruction_address + (thumb ? 2u : 4u);
@@ -34,6 +36,51 @@ void Cpu::ExecuteSoftwareInterrupt(u32 instruction, u32 instruction_address) {
             if (!fill) source += width;
             destination += width;
         }
+        return;
+    }
+    if (swi == 0x11 || swi == 0x12) { // LZ77UnCompWram/Vram.
+        u32 source = regs_[0] & ~3u;
+        u32 destination = swi == 0x12 ? regs_[1] & ~1u : regs_[1];
+        const u32 header = ReadData32(source);
+        source += 4;
+        if ((header & 0xFFu) != 0x10u)
+            throw std::runtime_error("Invalid LZ77 header");
+        const u32 size = header >> 8;
+        std::array<u8, 4096> history{};
+        u32 produced = 0;
+        u8 low_byte = 0;
+        const auto emit = [&](u8 value) {
+            history[produced & 0xFFFu] = value;
+            if (swi == 0x11) {
+                WriteData8(destination++, value);
+            } else if ((produced & 1u) == 0) low_byte = value;
+            else {
+                WriteData16(destination, static_cast<u16>(low_byte | (static_cast<u16>(value) << 8)));
+                destination += 2;
+            }
+            ++produced;
+        };
+        while (produced < size) {
+            const u8 flags = ReadData8(source++);
+            for (unsigned bit = 0; bit < 8 && produced < size; ++bit) {
+                if ((flags & (0x80u >> bit)) == 0) {
+                    emit(ReadData8(source++));
+                    continue;
+                }
+                const u8 first = ReadData8(source++);
+                const u8 second = ReadData8(source++);
+                const u32 length = (first >> 4) + 3u;
+                const u32 distance = (((first & 15u) << 8) | second) + 1u;
+                if (distance > produced)
+                    throw std::runtime_error("Invalid LZ77 VRAM backreference");
+                for (u32 i = 0; i < length && produced < size; ++i)
+                    emit(history[(produced - distance) & 0xFFFu]);
+            }
+        }
+        if (swi == 0x12 && (produced & 1u)) WriteData16(destination, low_byte);
+        regs_[0] = source;
+        regs_[1] = destination + (swi == 0x12 && (produced & 1u) ? 2u : 0u);
+        regs_[3] = 0;
         return;
     }
     if (emulate_bios_ && (swi == 6 || swi == 7)) {

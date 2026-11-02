@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <stdexcept>
+#include <sstream>
 #include <vector>
 #include "emulator.hpp"
 #include "input/input_manager.hpp"
@@ -34,6 +35,38 @@ std::vector<u8> LoadRom(const char* path) {
         throw std::runtime_error("Cannot read ROM");
     return data;
 }
+
+std::vector<u8> LoadBios(const std::string& path) {
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file || file.tellg() != kBiosSize)
+        throw std::runtime_error("BIOS must be a readable 16384-byte file: " + path);
+    std::vector<u8> data(kBiosSize);
+    file.seekg(0);
+    if (!file.read(reinterpret_cast<char*>(data.data()), data.size()))
+        throw std::runtime_error("Cannot read BIOS: " + path);
+    return data;
+}
+
+struct InputRange { u64 first, last; u16 buttons; };
+std::vector<InputRange> LoadInputReplay(const std::string& path) {
+    std::ifstream file(path);
+    if (!file) throw std::runtime_error("Cannot read input replay: " + path);
+    std::vector<InputRange> ranges;
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream fields(line);
+        InputRange range{};
+        unsigned buttons = 0;
+        if (!(fields >> range.first >> range.last >> std::hex >> buttons) ||
+            range.first >= range.last || buttons > 0x3FFu ||
+            (!ranges.empty() && range.first < ranges.back().last))
+            throw std::runtime_error("Invalid input replay: " + path);
+        range.buttons = static_cast<u16>(buttons);
+        ranges.push_back(range);
+    }
+    return ranges;
+}
 }
 int main(int argc, char** argv) {
     std::unique_ptr<Emulator> emulator;
@@ -48,19 +81,25 @@ int main(int argc, char** argv) {
     InputSettingsUi settings_ui;
     int result = 0;
     try {
-        if (argc < 2) throw std::runtime_error("Usage: gba_emu <rom.gba|--test-pattern> [--headless] [--frames N] [--dump-frame file.ppm] [--save-path file.sav] [--save-type auto|sram|flash64|flash128|eeprom512|eeprom8k] [--no-save]");
+        if (argc < 2) throw std::runtime_error("Usage: gba_emu <rom.gba|--test-pattern> [--bios file.bin] [--headless] [--frames N] [--replay-input file.txt] [--expect-swi-12] [--dump-frame file.ppm] [--save-path file.sav] [--save-type auto|sram|flash64|flash128|eeprom512|eeprom8k] [--no-save]");
         const bool pattern = std::string(argv[1]) == "--test-pattern";
         bool headless = false;
         bool trace = false;
         bool audio_diagnostics = false;
         bool no_save = false;
+        bool expect_swi_12 = false;
         BackupType save_type = BackupType::Auto;
         std::filesystem::path save_path;
+        std::string bios_path;
+        std::string replay_path;
         u64 limit = 0;
         std::string capture;
         for (int i = 2; i < argc; ++i) {
             const std::string option = argv[i];
             if (option == "--headless") headless = true;
+            else if (option == "--bios" && i + 1 < argc) bios_path = argv[++i];
+            else if (option == "--replay-input" && i + 1 < argc) replay_path = argv[++i];
+            else if (option == "--expect-swi-12") expect_swi_12 = true;
             else if (option == "--no-save") no_save = true;
             else if (option == "--save-path" && i + 1 < argc) save_path = argv[++i];
             else if (option == "--save-type" && i + 1 < argc) {
@@ -85,10 +124,15 @@ int main(int argc, char** argv) {
             else throw std::runtime_error("Unknown or incomplete option: " + option);
         }
         if (headless && !limit) throw std::runtime_error("--headless requires --frames N");
+        if ((!replay_path.empty() || expect_swi_12) && !headless)
+            throw std::runtime_error("Input replay and SWI checks require --headless");
+        const auto replay = replay_path.empty() ? std::vector<InputRange>{} : LoadInputReplay(replay_path);
         if (pattern && (!save_path.empty() || save_type != BackupType::Auto))
             throw std::runtime_error("Save options require a ROM");
+        if (pattern && !bios_path.empty()) throw std::runtime_error("--bios requires a ROM");
         if (no_save && !save_path.empty()) throw std::runtime_error("--no-save conflicts with --save-path");
-        emulator = std::make_unique<Emulator>(pattern ? std::vector<u8>{} : LoadRom(argv[1]), !pattern);
+        emulator = std::make_unique<Emulator>(pattern ? std::vector<u8>{} : LoadRom(argv[1]),
+            !pattern, bios_path.empty() ? std::vector<u8>{} : LoadBios(bios_path));
         if (save_type != BackupType::Auto) emulator->Memory().ConfigureBackup(save_type);
         if (!pattern && !no_save) {
             if (save_path.empty()) save_path = std::filesystem::path(argv[1]).replace_extension(".sav");
@@ -204,14 +248,24 @@ int main(int argc, char** argv) {
                 if (!frame_due()) SDL_Delay(1);
             }
             if (headless) {
+                u16 buttons = 0;
+                for (const auto& range : replay)
+                    if (emulator->Frames() >= range.first && emulator->Frames() < range.last) {
+                        buttons = range.buttons;
+                        break;
+                    }
+                emulator->Memory().SetKeyInput(buttons);
                 emulator->RunFrame();
                 if (limit && emulator->Frames() >= limit) running = false;
             }
         }
         if (!capture.empty()) emulator->DumpFrame(capture.c_str());
+        if (expect_swi_12 && !emulator->Swi12Calls())
+            throw std::runtime_error("Input replay did not reach SWI 0x12");
         if (trace) emulator->PrintTrace(std::cerr);
         if (headless) std::cout << "frames=" << emulator->Frames() << " pc=0x" << std::hex
-            << emulator->Pc() << " dispcnt=0x" << emulator->Memory().Read16(0x04000000) << '\n';
+            << emulator->Pc() << " dispcnt=0x" << emulator->Memory().Read16(0x04000000)
+            << std::dec << " swi12=" << emulator->Swi12Calls() << '\n';
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         if (emulator) emulator->PrintTrace(std::cerr);

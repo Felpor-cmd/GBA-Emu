@@ -1,6 +1,7 @@
 #include "bus.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace {
 u32 VramOffset(u32 address) {
@@ -10,17 +11,37 @@ u32 VramOffset(u32 address) {
 }
 
 Bus::Bus(std::vector<u8> rom, std::vector<u8> bios) : backup_(rom), rom_(std::move(rom)) {
+    if (!bios.empty() && bios.size() != kBiosSize)
+        throw std::invalid_argument("BIOS must be exactly 16384 bytes");
     has_bios_ = !bios.empty();
+    io_[0x300] = has_bios_ ? 0 : 1;
     io_[0x130] = 0xFF;
     io_[0x131] = 0x03;
     std::copy_n(bios.begin(), std::min(bios.size(), bios_.size()), bios_.begin());
 }
 
+void Bus::LatchBiosPrefetch(u32 address, bool thumb) {
+    if (!has_bios_ || address >= kBiosSize) return;
+    const u32 offset = address + (thumb ? 4u : 8u);
+    if (offset + 3 < kBiosSize) {
+        bios_prefetch_ = static_cast<u32>(bios_[offset]) |
+            (static_cast<u32>(bios_[offset + 1]) << 8) |
+            (static_cast<u32>(bios_[offset + 2]) << 16) |
+            (static_cast<u32>(bios_[offset + 3]) << 24);
+    }
+}
+
 u8 Bus::Read8(u32 address) const {
     switch (address >> 24){
-        case 0x00: return bios_[address & (kBiosSize - 1)];
+        case 0x00:
+            if (address >= kBiosSize) return 0;
+            if (has_bios_ && !cpu_in_bios_)
+                return static_cast<u8>(bios_prefetch_ >> ((address & 3u) * 8));
+            return bios_[address];
 
         case 0x04:
+            if (address == 0x04000300u) return io_[0x300] & 1u;
+            if (address == 0x04000301u) return 0;
             if (address >= 0x04000060u && address < 0x040000A8u)
                 return sound_.ReadRegister(address & 0x3FFu);
             if (address >= 0x04000100u && address < 0x04000110u) {
@@ -74,6 +95,16 @@ void Bus::Write8(u32 address, u8 value) {
         case 0x00: break; // BIOS is read-only, ignore writes
 
         case 0x04:
+            if (address == 0x04000300u) {
+                if (has_bios_ && !cpu_in_bios_) break;
+                io_[0x300] |= value & 1u;
+                break;
+            }
+            if (address == 0x04000301u) {
+                if (has_bios_ && !cpu_in_bios_) break;
+                halt_requested_ = (value & 0x80u) == 0;
+                break;
+            }
             if (address >= 0x04000060u && address < 0x040000A8u) {
                 TraceAudio(AudioEventKind::RegisterWrite, address, value);
                 sound_.WriteRegister(address & 0x3FFu, value);

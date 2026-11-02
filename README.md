@@ -29,6 +29,9 @@ mkdir -p /tmp/gba-emu/Zelda/captures
 build/gba_emu roms/Zelda.gba --headless --no-save --frames 600 \
     --dump-frame /tmp/gba-emu/Zelda/captures/zelda-600.ppm
 
+# Full power-on boot, including the BIOS startup screen:
+build/gba_emu roms/Zelda.gba --bios /home/arch/Downloads/gba_bios.bin
+
 `--trace` prints the final register state and recent instructions. Unsupported
 BIOS services produce one diagnostic and the trace, rather than entering empty
 BIOS memory. Headless runs require a frame limit.
@@ -44,12 +47,24 @@ tiled backgrounds in modes 0–2, and regular and affine sprites with layer
 priority. VCOUNT, HBlank, and VBlank status advance with CPU cycles. Rendering
 currently samples memory once per frame, so writes during a scanline do not
 produce raster effects. BIOS-free boot supports the reset, copying, division,
-affine setup, and interrupt wait services needed by Zelda: The Minish Cap.
+affine setup, LZ77 work RAM/VRAM decompression, and interrupt wait services
+needed by Zelda: The Minish Cap. `--bios` requires a readable 16 KiB GBA BIOS;
+the file is loaded in place and is never copied into the repository.
 Timers, video IRQs, DMA, alpha blending, brightness, WIN0/1 clipping,
 keyboard/controller keypad input, and audio are implemented. Keypad interrupts
 remain pending.
 
 Local ROM checks against pinned mGBA keep per-game logs and temporary captures in `/tmp/gba-emu/<ROM name>/`. Successful checks remove their captures and retain logs. See [docs/zelda-boot.md](docs/zelda-boot.md).
+
+The deterministic file-selection input replay is
+`test/fixtures/file_select_start_a.input`; it contains zero-based frame ranges
+and GBA key masks, not game data. Use `--headless --frames 2500
+--replay-input test/fixtures/file_select_start_a.input --expect-swi-12` to
+verify that a compatible game reaches LZ77 decompression. To compare any
+compatible ROMs with pinned mGBA in both boot modes, configure
+`MGBA_ROOT`, `GBA_BIOS_PATH`, and the semicolon-separated
+`GBA_BOOT_REPLAY_ROMS` CMake variable. CMake makes one BIOS and one BIOS-free
+replay check per ROM, using its adjacent `.sav` file when present.
 
 ## Status
 

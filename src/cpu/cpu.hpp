@@ -37,10 +37,12 @@ class Cpu {
     void EnterUndefinedInstructionException(u32 instruction_address);
     void EnterSoftwareInterruptException(u32 instruction_address);
     void Reset();  // Set up post-BIOS register/mode state.
+    void PowerOn(); // Enter the supplied BIOS reset vector.
     u32 Step();    // Fetch-decode-execute one instruction; return elapsed clocks.
     // A halted CPU can sleep until the coordinator's next hardware event.
     u32 StepUntilEvent(u32 halt_cycles);
     u64 GetCycles() const { return cycles_; }
+    u64 Swi12Calls() const { return swi12_calls_; }
 
 private:
     bool ExecuteThumb(u16 instruction, u32 instruction_address);
@@ -88,6 +90,7 @@ private:
     u16 bios_wait_mask_ = 0;
     bool hle_irq_active_ = false;
     u64 cycles_ = 0;
+    u64 swi12_calls_ = 0;
     u32 step_cycles_ = 0;
     u32 prefetch_clocks_ = 0;
     u32 prefetch_halfwords_ = 0;

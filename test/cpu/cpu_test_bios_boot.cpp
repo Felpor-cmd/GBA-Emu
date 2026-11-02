@@ -1,6 +1,72 @@
 #include <catch2/catch_test_macros.hpp>
 #include "cpu_test_helpers.hpp"
+#include "emulator.hpp"
 #include "ppu/ppu.hpp"
+#include <stdexcept>
+
+TEST_CASE("Supplied BIOS must have the exact GBA ROM size") {
+    REQUIRE_THROWS_AS(Bus(cpu_test::AsRom(0), std::vector<u8>(kBiosSize - 1)), std::invalid_argument);
+    REQUIRE_THROWS_AS(Bus(cpu_test::AsRom(0), std::vector<u8>(kBiosSize + 1)), std::invalid_argument);
+}
+
+TEST_CASE("Power-on enters the supplied BIOS before cartridge startup") {
+    std::vector<u8> bios(kBiosSize);
+    cpu_test::Put32(bios, 0, 0xEA000006u); // B 0x20.
+    cpu_test::Put32(bios, 0x20, 0xE59FF000u); // LDR pc,[pc].
+    cpu_test::Put32(bios, 0x28, 0x08000000u);
+    Emulator emulator(cpu_test::AsRom(0xE3A0002Au), true, bios);
+    REQUIRE(emulator.Pc() == 0);
+    Bus bus(cpu_test::AsRom(0xE3A0002Au), std::move(bios));
+    Cpu cpu(bus, true);
+    cpu.PowerOn();
+    REQUIRE(cpu.GetCpsr() == 0xD3u);
+    REQUIRE(cpu.GetRegister(15) == 0);
+    cpu.Step();
+    REQUIRE(cpu.GetRegister(15) == 0x20);
+    cpu.Step();
+    REQUIRE(cpu.GetRegister(15) == 0x08000000u);
+    cpu.Step();
+    REQUIRE(cpu.GetRegister(0) == 42);
+    REQUIRE(bus.Read8(0x04000300u) == 0);
+}
+
+TEST_CASE("BIOS reads outside BIOS execution expose the last prefetched opcode") {
+    std::vector<u8> bios(kBiosSize);
+    cpu_test::Put32(bios, 0, 0xE59F0000u); // LDR r0,[pc], prefetched word at 8.
+    cpu_test::Put32(bios, 8, 0x12345678u);
+    cpu_test::Put32(bios, 12, 0xE59FF000u); // LDR pc,[pc].
+    cpu_test::Put32(bios, 20, 0x08000000u);
+    Bus bus(cpu_test::AsRom(0xE1A00000u), std::move(bios));
+    Cpu cpu(bus);
+    cpu.PowerOn();
+    cpu.Step();
+    REQUIRE(cpu.GetRegister(0) == 0x12345678u);
+    cpu.SetRegister(15, 12);
+    cpu.Step();
+    REQUIRE(cpu.GetRegister(15) == 0x08000000u);
+    REQUIRE(bus.Read32(0) == 0x08000000u); // Prefetch at 0x14, not BIOS word at zero.
+    REQUIRE(bus.Read8(2) == 0x00u);
+    REQUIRE(bus.Read32(0x4000) == 0);
+}
+
+TEST_CASE("POSTFLG latches and HALTCNT sleeps until an enabled interrupt") {
+    Bus bus(cpu_test::AsRom(0xE1A00000u), std::vector<u8>(kBiosSize));
+    Cpu cpu(bus);
+    bus.Write8(0x04000300u, 1); // Cartridge writes cannot set POSTFLG.
+    REQUIRE(bus.Read8(0x04000300u) == 0);
+    bus.SetCpuExecutionAddress(0);
+    bus.Write8(0x04000300u, 1);
+    bus.Write8(0x04000300u, 0);
+    REQUIRE(bus.Read8(0x04000300u) == 1);
+    bus.Write8(0x04000301u, 0);
+    bus.SetCpuExecutionAddress(0x08000000u);
+    cpu.Step();
+    REQUIRE(cpu.IsHalted());
+    bus.Write16(0x04000200u, 1);
+    bus.RequestInterrupt(1);
+    cpu.Step();
+    REQUIRE_FALSE(cpu.IsHalted());
+}
 
 TEST_CASE("VBlankIntrWait dispatches the game IRQ and returns to Thumb with context intact") {
     std::vector<u8> rom(0x140, 0);

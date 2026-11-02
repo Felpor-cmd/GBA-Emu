@@ -1,0 +1,7 @@
+# Zero-based frames, end exclusive, GBA key mask in hexadecimal.
+# Start advances the title; A confirms the file and menus.
+1000 1030 008
+1400 1430 008
+1850 1870 001
+2050 2070 001
+2300 2320 001
