@@ -23,8 +23,8 @@ void AudioOutput::PullNext() {
 
 void AudioOutput::Fill(s16* samples, unsigned frames) {
     output_frames_.fetch_add(frames, std::memory_order_relaxed);
-    const unsigned speed = std::clamp(speed_percent_.load(std::memory_order_relaxed), 100u, 1000u);
-    const bool returning_to_normal = active_speed_percent_ > 100 && speed == 100;
+    const unsigned speed = std::clamp(speed_percent_.load(std::memory_order_relaxed), 50u, 1000u);
+    const bool returning_to_normal = active_speed_percent_ != 100 && speed == 100;
     if (speed != active_speed_percent_) {
         if ((speed == 100) != (active_speed_percent_ == 100)) transition_frames_ = 240;
         active_speed_percent_ = speed;

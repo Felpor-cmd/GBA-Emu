@@ -60,3 +60,64 @@ TEST_CASE("Semi transparent OBJ blends with backdrop without first-target select
     ppu.RenderFrame();
     REQUIRE(ppu.Pixels()[0] == 0xFF7B007Bu);
 }
+
+TEST_CASE("OBJ window reveals its enabled background only under opaque sprite pixels") {
+    Bus bus({});
+    Ppu ppu(bus);
+    for (u32 object = 1; object < 128; ++object)
+        bus.Write16(0x07000000u + object * 8, 0x0200u);
+    bus.Write16(0x04000000u, 0x9100u); // BG0, OBJ, OBJ window.
+    bus.Write16(0x04000008u, 0x0100u); // BG0 map block 1.
+    bus.Write8(0x06000000u, 0x11u); // Opaque BG at x=0 and x=1.
+    bus.Write16(0x05000000u, 0x7C00u); // Blue backdrop.
+    bus.Write16(0x05000002u, 0x001Fu); // Red BG pixel.
+    bus.Write16(0x05000202u, 0x03E0u); // Green OBJ pixel must stay hidden.
+    bus.Write16(0x07000000u, 0x0800u); // OBJ 0 is an OBJ window.
+    bus.Write8(0x06010000u, 0x01u); // Only x=0 is opaque.
+    bus.Write16(0x0400004Au, 0x0100u); // BG0 inside OBJ window; backdrop outside.
+
+    ppu.RenderFrame();
+    REQUIRE(ppu.Pixels()[0] == 0xFFFF0000u);
+    REQUIRE(ppu.Pixels()[1] == 0xFF0000FFu);
+
+    bus.Write16(0x04000000u, 0x1100u); // OBJ window disabled.
+    ppu.RenderFrame();
+    REQUIRE(ppu.Pixels()[0] == 0xFFFF0000u);
+    REQUIRE(ppu.Pixels()[1] == 0xFFFF0000u);
+
+    bus.Write16(0x04000000u, 0x8100u); // OBJ rendering disabled.
+    ppu.RenderFrame();
+    REQUIRE(ppu.Pixels()[0] == 0xFF0000FFu);
+}
+
+TEST_CASE("WIN0 and WIN1 take priority over OBJ window pixels") {
+    Bus bus({});
+    Ppu ppu(bus);
+    for (u32 object = 1; object < 128; ++object)
+        bus.Write16(0x07000000u + object * 8, 0x0200u);
+    bus.Write16(0x04000000u, 0xF100u); // BG0, OBJ, WIN0, WIN1, OBJ window.
+    bus.Write16(0x04000008u, 0x0100u);
+    bus.Write8(0x06000000u, 0x11u);
+    bus.Write16(0x05000000u, 0x7C00u);
+    bus.Write16(0x05000002u, 0x001Fu);
+    bus.Write16(0x07000000u, 0x0800u);
+    bus.Write8(0x06010000u, 0x11u);
+    bus.Write16(0x0400004Au, 0x0100u); // BG0 in OBJ window.
+    bus.Write16(0x04000040u, 0x0001u); // WIN0 covers only x=0.
+    bus.Write16(0x04000044u, 0x0001u); // WIN0 covers only y=0.
+    bus.Write16(0x04000042u, 0x0002u); // WIN1 covers x=0 and x=1.
+    bus.Write16(0x04000046u, 0x0001u);
+    bus.Write16(0x04000048u, 1u); // BG0 in WIN0, backdrop in WIN1.
+
+    ppu.RenderFrame();
+    REQUIRE(ppu.Pixels()[0] == 0xFFFF0000u);
+    REQUIRE(ppu.Pixels()[1] == 0xFF0000FFu);
+
+    bus.Write16(0x04000000u, 0xD100u); // WIN0 off; WIN1 wins.
+    ppu.RenderFrame();
+    REQUIRE(ppu.Pixels()[0] == 0xFF0000FFu);
+
+    bus.Write16(0x04000000u, 0x9100u); // Both rectangular windows off.
+    ppu.RenderFrame();
+    REQUIRE(ppu.Pixels()[0] == 0xFFFF0000u);
+}

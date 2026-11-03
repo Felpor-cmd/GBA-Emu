@@ -5,6 +5,7 @@
 #include "memory/bus.hpp"
 #include "ppu/ppu.hpp"
 #include "sound/audio_output.hpp"
+#include "frame_rate_tracker.hpp"
 
 TEST_CASE("Host audio playback rate does not depend on queue depth") {
     Bus bus({});
@@ -105,6 +106,40 @@ TEST_CASE("Fast-forward audio handles the 10x setting without dropping samples")
     REQUIRE(consumed <= 3280);
     REQUIRE(output.Underruns() == 0);
     REQUIRE(bus.DroppedAudioSamples() == 0);
+}
+
+TEST_CASE("Fast-forward rate uses the completion time of expensive frame batches") {
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point start{};
+    FrameRateTracker rate(1.0 / 60.0);
+    rate.Reset(start);
+
+    const auto first = rate.Observe(3, start + std::chrono::milliseconds(90), 200);
+    REQUIRE(first.has_value());
+    REQUIRE(*first >= 55);
+    REQUIRE(*first <= 56);
+    const auto second = rate.Observe(3, start + std::chrono::milliseconds(180), 200);
+    REQUIRE(second.has_value());
+    REQUIRE(*second >= 55);
+    REQUIRE(*second <= 56);
+
+    rate.Reset(start);
+    REQUIRE_FALSE(rate.Observe(3, start + std::chrono::milliseconds(25), 200));
+    REQUIRE(rate.Observe(3, start + std::chrono::milliseconds(50), 200) == 200);
+}
+
+TEST_CASE("Audio consumption follows a measured speed below real time") {
+    Bus bus({});
+    AudioOutput output(bus);
+    bus.AdvanceTimers(Ppu::kCyclesPerFrame * 12);
+    std::array<s16, 480 * 2> samples{};
+    output.SetPlaybackSpeedPercent(50);
+    const u32 before = bus.QueuedAudioSamples();
+    output.Fill(samples.data(), 480);
+    const u32 consumed = before - bus.QueuedAudioSamples();
+    REQUIRE(consumed >= 164);
+    REQUIRE(consumed <= 166);
+    REQUIRE(output.Underruns() == 0);
 }
 
 TEST_CASE("Normal-speed square audio does not clip during interpolation") {

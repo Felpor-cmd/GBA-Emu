@@ -13,6 +13,7 @@
 #include "emulator.hpp"
 #include "input/input_manager.hpp"
 #include "sound/audio_output.hpp"
+#include "frame_rate_tracker.hpp"
 #include "ui/input_settings_ui.hpp"
 #include "memory/save_file.hpp"
 
@@ -183,14 +184,13 @@ int main(int argc, char** argv) {
             std::filesystem::create_directories(directory);
             audio_log.open(directory / "playback.csv");
             if (!audio_log) throw std::runtime_error("Cannot open audio diagnostics log");
-            audio_log << "wall_seconds,frames,backlog_seconds,queued,underrun_samples,dropped_samples,output_frames\n";
+            audio_log << "wall_seconds,frames,backlog_seconds,queued,underrun_samples,dropped_samples,output_frames,fast_forward,audio_speed_percent\n";
         }
         double accumulator = 0;
         bool audio_started = false;
         bool was_fast_forward = false;
-        auto speed_window_start = previous;
+        FrameRateTracker speed_tracker(period);
         auto next_video_render = previous;
-        u64 speed_window_frames = 0;
         unsigned playback_speed_percent = 100;
         bool running = true;
         while (running) {
@@ -220,9 +220,8 @@ int main(int argc, char** argv) {
                 const bool fast_forward = keyboard_focused && keyboard_state[SDL_SCANCODE_TAB] && target_speed > 1;
                 if (fast_forward != was_fast_forward) {
                     accumulator = 0;
-                    speed_window_start = now;
+                    speed_tracker.Reset(now);
                     next_video_render = now;
-                    speed_window_frames = 0;
                     playback_speed_percent = 100;
                     audio_output->SetPlaybackSpeedPercent(100);
                     was_fast_forward = fast_forward;
@@ -232,6 +231,7 @@ int main(int argc, char** argv) {
                 }
                 emulator->Memory().SetKeyInput(input.PressedMask(keyboard_focused));
                 unsigned catchup_frames = 0;
+                unsigned completed_batch_frames = 0;
                 bool frame_advanced = false;
                 const auto frame_due = [&] {
                     if (fast_forward)
@@ -247,21 +247,12 @@ int main(int argc, char** argv) {
                     // between independent video and audio clocks.
                     if (audio_started && !fast_forward) accumulator = 0;
                     else accumulator -= period;
-                    if (fast_forward) ++speed_window_frames;
+                    if (fast_forward) ++completed_batch_frames;
                     if (audio_device && !audio_started && audio_output->Ready()) {
                         SDL_PauseAudioDevice(audio_device, 0);
                         audio_started = true;
                     }
                     if (limit && emulator->Frames() >= limit) running = false;
-                }
-                if (fast_forward && now - speed_window_start >= std::chrono::milliseconds(50)) {
-                    const double seconds = std::chrono::duration<double>(now - speed_window_start).count();
-                    const unsigned achieved = static_cast<unsigned>(100.0 * speed_window_frames * period / seconds);
-                    playback_speed_percent = std::clamp((playback_speed_percent + achieved) / 2,
-                        100u, target_speed * 100u);
-                    audio_output->SetPlaybackSpeedPercent(playback_speed_percent);
-                    speed_window_start = now;
-                    speed_window_frames = 0;
                 }
                 if (renderer && frame_advanced && (!frame_due() || fast_forward) &&
                     (!fast_forward || now >= next_video_render)) {
@@ -276,14 +267,23 @@ int main(int argc, char** argv) {
                     if (fast_forward) next_video_render = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                         std::chrono::duration<double>(period));
                 }
+                if (!frame_due()) SDL_Delay(1);
+                if (fast_forward) {
+                    if (const auto achieved = speed_tracker.Observe(completed_batch_frames,
+                            std::chrono::steady_clock::now(), target_speed * 100u)) {
+                        playback_speed_percent = *achieved;
+                        audio_output->SetPlaybackSpeedPercent(playback_speed_percent);
+                    }
+                }
                 if (audio_diagnostics && now >= next_audio_log) {
                     audio_log << std::chrono::duration<double>(now - started).count() << ',' << emulator->Frames()
                         << ',' << accumulator << ',' << emulator->Memory().QueuedAudioSamples()
                         << ',' << audio_output->Underruns() << ',' << emulator->Memory().DroppedAudioSamples()
-                        << ',' << audio_output->OutputFrames() << '\n';
-                    next_audio_log = now + std::chrono::seconds(1);
+                        << ',' << audio_output->OutputFrames() << ',' << fast_forward
+                        << ',' << playback_speed_percent << '\n';
+                    next_audio_log = now + (fast_forward ? std::chrono::milliseconds(250)
+                        : std::chrono::milliseconds(1000));
                 }
-                if (!frame_due()) SDL_Delay(1);
             }
             if (headless) {
                 u16 buttons = 0;

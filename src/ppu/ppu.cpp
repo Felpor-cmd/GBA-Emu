@@ -118,7 +118,6 @@ std::optional<u16> ObjectPixel(const Bus& bus, u16 dispcnt, u32 object,
     const u16 attr2 = bus.Read16(address + 4);
     const bool affine = (attr0 & (1u << 8)) != 0;
     if (!affine && (attr0 & (1u << 9))) return std::nullopt;
-    if (((attr0 >> 10) & 3u) >= 2) return std::nullopt;
     const u32 shape = attr0 >> 14;
     if (shape >= 3) return std::nullopt;
     const auto size = kObjectSizes[shape][attr1 >> 14];
@@ -210,6 +209,7 @@ void Ppu::RenderFrame() {
     std::array<u32, kWidth * kHeight> object_keys;
     std::array<u16, kWidth * kHeight> object_colors{};
     std::array<bool, kWidth * kHeight> object_semi{};
+    std::array<bool, kWidth * kHeight> object_window{};
     object_keys.fill(0xFFFFFFFFu);
     if (dispcnt & (1u << 12)) {
         for (u32 object = 0; object < 128; ++object) {
@@ -218,8 +218,9 @@ void Ppu::RenderFrame() {
             const u16 attr1 = bus_.Read16(address + 2);
             const u16 attr2 = bus_.Read16(address + 4);
             const u32 shape = attr0 >> 14;
+            const u32 object_mode = (attr0 >> 10) & 3u;
             if (shape >= 3 || (!(attr0 & (1u << 8)) && (attr0 & (1u << 9))) ||
-                ((attr0 >> 10) & 3u) >= 2) continue;
+                object_mode == 3 || (object_mode == 2 && !(dispcnt & (1u << 15)))) continue;
             const auto size = kObjectSizes[shape][attr1 >> 14];
             const bool double_size = (attr0 & 0x0300u) == 0x0300u;
             const int width = size.width * (double_size ? 2 : 1);
@@ -231,6 +232,11 @@ void Ppu::RenderFrame() {
             for (int y = std::max(0, oy); y < std::min(kHeight, oy + height); ++y) {
                 for (int x = std::max(0, ox); x < std::min(kWidth, ox + width); ++x) {
                     const u32 offset = static_cast<u32>(y * kWidth + x);
+                    if (object_mode == 2) {
+                        if (!object_window[offset] && ObjectPixel(bus_, dispcnt, object, x, y))
+                            object_window[offset] = true;
+                        continue;
+                    }
                     if (object_keys[offset] != 0xFFFFFFFFu) continue;
                     const auto color = ObjectPixel(bus_, dispcnt, object, x, y);
                     if (color) {
@@ -246,7 +252,9 @@ void Ppu::RenderFrame() {
         for (int x = 0; x < kWidth; ++x) {
             u16 mask = 0x3Fu;
             if (dispcnt & 0xE000u) {
-                mask = bus_.Read16(0x0400004Au) & 0x3Fu;
+                const u16 winout = bus_.Read16(0x0400004Au);
+                const u32 offset = static_cast<u32>(y * kWidth + x);
+                mask = object_window[offset] ? (winout >> 8) & 0x3Fu : winout & 0x3Fu;
                 for (int win = 1; win >= 0; --win) {
                     if (!(dispcnt & (1u << (13 + win)))) continue;
                     if (WindowContains(bus_.Read16(0x04000040u + win * 2), x) &&

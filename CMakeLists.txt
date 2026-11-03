@@ -262,6 +262,12 @@ if(GBA_BOOT_REPLAY_ROMS)
         get_filename_component(_boot_rom_dir "${_boot_rom_abs}" DIRECTORY)
         get_filename_component(_boot_rom_stem "${_boot_rom_abs}" NAME_WE)
         set(_boot_save "${_boot_rom_dir}/${_boot_rom_stem}.sav")
+        add_test(NAME "boot_${_boot_rom_stem}_bios_intro" COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify_rom.py"
+            --emulator "$<TARGET_FILE:gba_emu>" --reference "$<TARGET_FILE:mgba_frame_capture>"
+            --rom "${_boot_rom_abs}" --output-dir "/tmp/gba-emu/${_boot_rom_stem}-bios-intro"
+            --frames 120,180,240 --alignment-window 20 --min-colors 2 --bios "${GBA_BIOS_PATH}")
+        set_tests_properties("boot_${_boot_rom_stem}_bios_intro" PROPERTIES LABELS "local-rom" TIMEOUT 900)
         set(_replay_args --frames "${GBA_BOOT_REPLAY_FRAMES}" --alignment-window 20 --min-colors 20
             --replay-input "${GBA_BOOT_REPLAY_INPUT}" --expect-swi-12)
         if(EXISTS "${_boot_save}")
